@@ -1,0 +1,274 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  BookOpen, BriefcaseBusiness, Camera, ChevronRight, CircleUserRound, Edit3, HeartHandshake,
+  ImagePlus, MoreHorizontal, PawPrint, RotateCcw, Trash2, UsersRound, X,
+} from "lucide-react";
+import type { Character, Project } from "../types";
+import { useI18n } from "../i18n";
+import type { LinkEdit } from "./LinkDialog";
+
+const tabs = [
+  ["main", "main", CircleUserRound],
+  ["stages", "lifeStages", Camera],
+  ["traits", "characteristics", BookOpen],
+  ["career", "career", BriefcaseBusiness],
+  ["family", "family", UsersRound],
+  ["relations", "relations", HeartHandshake],
+] as const;
+
+export function Inspector({
+  character,
+  project,
+  onClose,
+  onEdit,
+  onDelete,
+  onAddLink,
+  onRestore,
+  onPhoto,
+  onLifeStage,
+  onEditPhoto,
+  onRemovePhoto,
+  onEditLink,
+  onRemoveLink,
+  onPasteError,
+}: {
+  character?: Character;
+  project: Project;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onAddLink: (kind: "parent" | "pair") => void;
+  onRestore?: () => void;
+  onPhoto: (file: File, stageName: string) => void;
+  onLifeStage: (stage: string) => void;
+  onEditPhoto: (stage: string) => void;
+  onRemovePhoto: (stage: string) => void;
+  onEditLink: (edit: LinkEdit) => void;
+  onRemoveLink: (kind: "parent" | "pair", id: string, labelId?: string) => void;
+  onPasteError: () => void;
+}) {
+  const { t, valueLabel } = useI18n();
+  const [tab, setTab] = useState<(typeof tabs)[number][0]>("main");
+  const [activePhotoStage, setActivePhotoStage] = useState(character?.lifeStage ?? "");
+  const [showMore, setShowMore] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setActivePhotoStage(character?.lifeStage ?? "");
+    setTab("main");
+    setShowMore(false);
+  }, [character?.id]);
+
+  useEffect(() => {
+    if (character && !character.stages.some((stage) => stage.name === activePhotoStage)) setActivePhotoStage(character.lifeStage);
+  }, [character?.stages, character?.lifeStage, activePhotoStage]);
+
+  useEffect(() => {
+    if (!character || tab !== "stages") return;
+    const paste = (event: ClipboardEvent) => {
+      const active = document.activeElement;
+      if (document.querySelector('[role="dialog"]') || active instanceof Element && active.closest('input, textarea, [contenteditable="true"]')) return;
+      const file = Array.from(event.clipboardData?.items ?? []).find((item) => item.type.startsWith("image/"))?.getAsFile()
+        ?? Array.from(event.clipboardData?.files ?? []).find((item) => item.type.startsWith("image/"));
+      if (!file) { onPasteError(); return; }
+      event.preventDefault();
+      onPhoto(file, activePhotoStage || character.lifeStage);
+    };
+    window.addEventListener("paste", paste);
+    return () => window.removeEventListener("paste", paste);
+  }, [character, tab, activePhotoStage, onPhoto, onPasteError]);
+
+  if (!character) return (
+    <aside className="inspector inspector-empty">
+      <div className="empty-orbit"><CircleUserRound size={28} /></div>
+      <h3>{t("selectCharacter")}</h3>
+      <p>{t("selectCharacterHint")}</p>
+    </aside>
+  );
+
+  const currentStage = character.stages.find((stage) => stage.name === character.lifeStage);
+  const initials = character.displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2);
+  const parents = project.parentLinks.filter((link) => link.childId === character.id);
+  const children = project.parentLinks.filter((link) => link.parentId === character.id);
+  const pairs = project.pairLinks.filter((link) => link.aId === character.id || link.bId === character.id);
+  const characterName = (id: string) => project.characters.find((item) => item.id === id)?.displayName ?? t("unknownCharacter");
+  const selectedPhotoStage = character.stages.find((stage) => stage.name === activePhotoStage);
+
+  const acceptFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    onPhoto(file, activePhotoStage || character.lifeStage);
+  };
+
+  return (
+    <aside className="inspector">
+      <header className="inspector-header">
+        <div className="profile-portrait" style={{ "--profile-accent": character.color } as React.CSSProperties}>
+          {currentStage?.photo?.edited ? <img src={currentStage.photo.edited} alt="" /> : <span>{initials}</span>}
+          <i>{character.type === "pet" ? <PawPrint size={15} /> : <CircleUserRound size={15} />}</i>
+        </div>
+        <div className="profile-title">
+          <span className="eyebrow">{character.type === "pet" ? character.species || t("pet") : `${t("generation")} ${character.generation}`}</span>
+          <h2>{character.displayName}</h2>
+          <p>{valueLabel(character.lifeStage)} · {t(character.status)}</p>
+        </div>
+        <button className="icon-button" onClick={onClose} aria-label={t("closeProfile")}><X size={18} /></button>
+      </header>
+      <div className="profile-actions">
+        <button onClick={onEdit}><Edit3 size={15} /> {t("edit")}</button>
+        <button aria-label={t("moreActions")} title={t("moreActions")} onClick={() => setShowMore((value) => !value)}><MoreHorizontal size={17} /></button>
+        <button className="danger-ghost" onClick={onDelete} aria-label={t("moveToTrash")}><Trash2 size={15} /></button>
+        {showMore && (
+          <div className="profile-more-menu">
+            <button onClick={() => { setShowMore(false); onAddLink("parent"); }}>
+              <UsersRound size={15} />
+              <span><strong>{t("addFamily")}</strong><small>{t("parentOrChild")}</small></span>
+            </button>
+            <button onClick={() => { setShowMore(false); onAddLink("pair"); }}>
+              <HeartHandshake size={15} />
+              <span><strong>{t("addRelations")}</strong><small>{t("friendshipRomanceDislike")}</small></span>
+            </button>
+          </div>
+        )}
+      </div>
+      <nav className="profile-tabs">
+        {tabs.map(([id, labelKey, Icon]) => (
+          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} title={t(labelKey)}>
+            <Icon size={17} /><span>{t(labelKey)}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="inspector-scroll">
+        {tab === "main" && (
+          <>
+            <section className="profile-section prose">
+              <div className="section-heading"><span>{t("story")}</span></div>
+              <p>{character.biography || t("storyEmpty")}</p>
+            </section>
+            <section className="profile-section prose">
+              <div className="section-heading"><span>{t("notes")}</span></div>
+              <p className="preserve-lines">{character.notes || t("notFilled")}</p>
+              <dl className="facts">
+                {([
+                  ["firstName", character.firstName], ["lastName", character.lastName], ["aliases", character.aliases.join(", ")],
+                  ["pronouns", character.pronouns], ["gender", character.gender], ["occultType", character.occultType],
+                  ["birthDate", character.birthDate], ["deathDate", character.deathDate], ["education", character.education], ["deathCause", character.deathCause],
+                ] as const).filter(([, value]) => value).map(([key, value]) => <div key={key}><dt>{t(key)}</dt><dd>{value}</dd></div>)}
+              </dl>
+            </section>
+            <section className="profile-section">
+              <div className="section-heading"><span>{t("aboutCharacter")}</span></div>
+              <dl className="facts">
+                <div><dt>{t("home")}</dt><dd>{character.household || t("notSpecified")}</dd></div>
+                <div><dt>{t("world")}</dt><dd>{character.world || t("notSpecified")}</dd></div>
+                <div><dt>{t("lot")}</dt><dd>{character.lot || t("notSpecified")}</dd></div>
+                <div><dt>{t("goal")}</dt><dd>{character.aspiration || t("notSpecified")}</dd></div>
+              </dl>
+            </section>
+            <section className="profile-section">
+              <div className="section-heading"><span>{t("traits")}</span><button onClick={() => setTab("traits")}>{t("allTraits")} <ChevronRight size={14} /></button></div>
+              <div className="large-chips">
+                {character.traits.map((trait) => <span key={trait}>{trait}</span>)}
+                {!character.traits.length && <p className="empty-inline">{t("traitsEmpty")}</p>}
+              </div>
+            </section>
+          </>
+        )}
+        {tab === "stages" && (
+          <section className="profile-section stage-section">
+            <div className="section-heading"><span>{t("lifeTimeline")}</span></div>
+            <p className="section-hint">{t("lifeTimelineHint")}</p>
+            <div className="stage-timeline">
+              {character.stages.map((stage) => (
+                <button
+                  key={stage.id}
+                  className={activePhotoStage === stage.name ? "active" : ""}
+                  onClick={() => {
+                    setActivePhotoStage(stage.name);
+                  }}
+                >
+                  <div className="stage-thumb">
+                    {stage.photo?.edited ? <img src={stage.photo.edited} alt="" /> : <ImagePlus size={18} />}
+                  </div>
+                  <div><strong>{valueLabel(stage.name)}{stage.name === character.lifeStage ? ` · ${t("currentStage")}` : ""}</strong><small>{stage.photo ? t("photoAdded") : t("noPhoto")}</small></div>
+                </button>
+              ))}
+            </div>
+            <div className="stage-actions">
+              <button className="button subtle" disabled={!selectedPhotoStage || activePhotoStage === character.lifeStage} onClick={() => onLifeStage(activePhotoStage)}>{t("makeCurrentStage")}</button>
+              {selectedPhotoStage?.photo && <><button className="button subtle" onClick={() => onEditPhoto(activePhotoStage)}>{t("editPhoto")}</button><button className="button ghost danger-ghost" onClick={() => onRemovePhoto(activePhotoStage)}>{t("removePhoto")}</button></>}
+            </div>
+            <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => { acceptFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+            <button className="upload-zone" onClick={() => fileInput.current?.click()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files[0]); }} onDragOver={(event) => event.preventDefault()}>
+              <Camera size={20} />
+              <span>{t("addPhotoStage", { stage: valueLabel(activePhotoStage) })}</span>
+              <small>{t("photoDropHint")}</small>
+            </button>
+          </section>
+        )}
+        {tab === "traits" && (
+          <section className="profile-section">
+            <div className="section-heading"><span>{t("characteristics")}</span></div>
+            {[
+              [t("traits"), character.traits],
+              [t("preferences"), character.preferences],
+              [t("skills"), character.skills],
+              [t("tags"), character.tags],
+            ].map(([label, values]) => (
+              <div className="trait-group" key={label as string}>
+                <h4>{label as string}</h4>
+                <div className="large-chips">
+                  {(values as string[]).map((value) => <span key={value}>{value}</span>)}
+                  {!(values as string[]).length && <span className="empty-inline">{t("notFilled")}</span>}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+        {tab === "career" && (
+          <section className="profile-section empty-section">
+            <BriefcaseBusiness size={26} />
+            <h3>{t("careerHistory")}</h3>
+            <p>{t("careerHint")}</p>
+            <button className="button subtle" onClick={onEdit}>{t("fillProfile")}</button>
+          </section>
+        )}
+        {tab === "family" && (
+          <section className="profile-section">
+            <div className="section-heading"><span>{t("familyLinks")}</span></div>
+            <div className="link-list">
+              {[...parents, ...children.filter((child) => !parents.some((parent) => parent.id === child.id))].map((link) => <div className="editable-family-link" key={link.id}>
+                <i className={`family-mark ${link.parentId === character.id ? "child" : ""}`} />
+                <span><small>{valueLabel(link.childId === character.id ? link.parentRole : link.childRole)}{!link.active ? ` · ${t("endedConnection")}` : ""}</small>{characterName(link.childId === character.id ? link.parentId : link.childId)}<small>{valueLabel(link.kind)}</small>{link.comment && <small>{link.comment}</small>}</span>
+                <div className="link-actions"><button className="icon-button" aria-label={t("editConnection")} onClick={() => onEditLink({ kind: "parent", link })}><Edit3 size={14} /></button><button className="icon-button danger-ghost" aria-label={t("removeConnection")} onClick={() => onRemoveLink("parent", link.id)}><Trash2 size={14} /></button></div>
+              </div>)}
+              <button className="button subtle" onClick={() => onAddLink("parent")}>{t("addFamily")}</button>
+              {!parents.length && !children.length && <p className="empty-inline">{t("noFamilyLinks")}</p>}
+            </div>
+          </section>
+        )}
+        {tab === "relations" && (
+          <section className="profile-section">
+            <div className="section-heading"><span>{t("personalRelations")}</span></div>
+            <div className="relation-list">
+              {pairs.map((pair) => {
+                const otherId = pair.aId === character.id ? pair.bId : pair.aId;
+                return <div key={pair.id}><strong>{characterName(otherId)}</strong><div className="editable-relations">{pair.labels.map((label) => <div className="relation-entry" key={label.id}>
+                  <span style={{ "--tag": label.color } as React.CSSProperties}>{valueLabel(label.name)}{label.publicity === "secret" ? t("secretSuffix") : ""}{!label.active ? ` · ${t("endedConnection")}` : ""}</span>
+                  <small>{label.direction === "mutual" ? t("mutual") : `${characterName(label.direction === "a-to-b" ? pair.aId : pair.bId)} → ${characterName(label.direction === "a-to-b" ? pair.bId : pair.aId)}`}</small>
+                  {label.comment && <small className="preserve-lines">{label.comment}</small>}
+                  <div className="link-actions"><button className="icon-button" aria-label={t("editConnection")} onClick={() => onEditLink({ kind: "pair", pair, label })}><Edit3 size={14} /></button><button className="icon-button danger-ghost" aria-label={t("removeConnection")} onClick={() => onRemoveLink("pair", pair.id, label.id)}><Trash2 size={14} /></button></div>
+                </div>)}</div></div>;
+              })}
+              {!pairs.length && <p className="empty-inline">{t("noPersonalRelations")}</p>}
+              <button className="button subtle" onClick={() => onAddLink("pair")}>{t("addRelations")}</button>
+            </div>
+          </section>
+        )}
+        {onRestore && (
+          <button className="button subtle" onClick={onRestore}><RotateCcw size={16} /> {t("restoreTrash")}</button>
+        )}
+      </div>
+    </aside>
+  );
+}

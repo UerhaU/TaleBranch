@@ -1,0 +1,122 @@
+export type CharacterType = "sim" | "pet" | "custom";
+export type CharacterStatus = "alive" | "dead" | "missing" | "unknown";
+export type Theme = "dark" | "light";
+
+export interface StagePhoto {
+  original: string;
+  edited: string;
+  updatedAt: string;
+  transform?: PhotoTransform;
+}
+
+export interface PhotoTransform { zoom: number; x: number; y: number; rotation: number; flipped: boolean }
+
+export interface LifeStage {
+  id: string;
+  name: string;
+  order: number;
+  photo?: StagePhoto;
+}
+
+export interface Character {
+  id: string;
+  displayName: string;
+  firstName: string;
+  lastName: string;
+  aliases: string[];
+  type: CharacterType;
+  species: string;
+  lifeStage: string;
+  status: CharacterStatus;
+  pronouns: string;
+  gender: string;
+  occultType: string;
+  birthDate: string;
+  deathDate: string;
+  generation: number;
+  household: string;
+  world: string;
+  lot: string;
+  aspiration: string;
+  traits: string[];
+  preferences: string[];
+  skills: string[];
+  education: string;
+  deathCause: string;
+  biography: string;
+  notes: string;
+  tags: string[];
+  color: string;
+  ownerIds?: string[];
+  stages: LifeStage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ParentLink {
+  id: string;
+  parentId: string;
+  childId: string;
+  kind: string;
+  parentRole: string;
+  childRole: string;
+  biological: "yes" | "no" | "unknown";
+  active: boolean;
+  comment: string;
+}
+
+export type RelationshipDirection = "mutual" | "a-to-b" | "b-to-a";
+
+export interface RelationshipLabel {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+  direction: RelationshipDirection;
+  active: boolean;
+  publicity: "open" | "secret" | "unknown";
+  comment: string;
+}
+
+export interface PairLink {
+  id: string;
+  aId: string;
+  bId: string;
+  labels: RelationshipLabel[];
+}
+
+export interface NodePosition {
+  x: number;
+  y: number;
+}
+
+export interface Project {
+  formatVersion: 1;
+  id: string;
+  name: string;
+  description: string;
+  worldName: string;
+  createdAt: string;
+  updatedAt: string;
+  characters: Character[];
+  parentLinks: ParentLink[];
+  pairLinks: PairLink[];
+  positions: Record<string, NodePosition>;
+  trashedCharacters: Character[];
+  trashLinks?: { parentLinks: ParentLink[]; pairLinks: PairLink[]; positions: Record<string, NodePosition> };
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  description: string;
+  worldName: string;
+  updatedAt: string;
+  characterCount: number;
+}
+
+export interface HistoryState {
+  past: Project[];
+  present: Project;
+  future: Project[];
+}

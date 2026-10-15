@@ -1,0 +1,54 @@
+node_modules/
+dist/
+target/
+src-tauri/target/
+.vite/
+.idea/
+.vscode/
+*.log
+*.dynasty-tree
+*.sqlite
+media/
+backups/
+release/
+.DS_Store
+Thumbs.db
+
+# Local development output and publication drafts
+.dev-logs/
+.publication/
+coverage/
+*.tsbuildinfo
+/vite.config.js
+/vite.config.d.ts
+/src-tauri/gen/
+
+# Local configuration, credentials, and signing material
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+/scripts/dev-env.local.ps1
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+
+# User data, exports, and packaged applications
+*.sqlite-*
+*.db
+*.db-*
+*-recovery*.json
+*.exe
+*.msi
+*.msix
+*.appx
+*.dmg
+*.AppImage
+
+# Internal development notes; publish separately only after review
+/AGENTS.md
+/REVIEW_*.md
+/TECHNICAL_SPECIFICATION_RU*.md
