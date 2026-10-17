@@ -21,12 +21,11 @@ async function main() {
   const exeName = `${prefix}-portable.exe`;
   const checksumName = `${prefix}-SHA256.txt`;
   const endpoint = `https://api.github.com/repos/${repository}`;
-  const existing = await fetch(`${endpoint}/releases/tags/${tag}`, { headers: apiHeaders });
-  let release;
-  if (existing.ok) {
-    release = await existing.json();
-    if (!release.draft) throw new Error('This release is already public; refusing to replace it.');
-  } else if (existing.status !== 404) throw new Error(`Cannot check existing release: ${existing.status}`);
+  // A draft can exist before its Git tag. The tag endpoint returns 404 for it.
+  const existing = await fetch(`${endpoint}/releases?per_page=100`, { headers: apiHeaders });
+  if (!existing.ok) throw new Error(`Cannot check existing releases: ${existing.status}`);
+  let release = (await existing.json()).find(item => item.tag_name === tag);
+  if (release && !release.draft) throw new Error('This release is already public; refusing to replace it.');
 
   const response = await fetch(`${endpoint}/git/blobs/${manifest.archiveBlob}`, { headers: { ...apiHeaders, Accept: 'application/vnd.github.raw+json' } });
   if (!response.ok) throw new Error(`Cannot download staged archive: ${response.status}`);
@@ -49,7 +48,8 @@ async function main() {
   fs.writeFileSync(checksumPath, `${manifest.exeSha256.toUpperCase()}  ${exeName}\n${manifest.archiveSha256.toUpperCase()}  ${archiveName}\n`);
   if (!release) gh('release', 'create', tag, '--repo', repository, '--target', target, '--title', `TaleBranch ${tag} — Первая бета / First beta`, '--notes-file', `docs/releases/${tag}.md`, '--draft', '--prerelease');
   gh('release', 'upload', tag, archivePath, exePath, checksumPath, '--repo', repository, '--clobber');
-  release = JSON.parse(gh('api', `repos/${repository}/releases/tags/${tag}`));
+  release = JSON.parse(gh('api', `repos/${repository}/releases?per_page=100`)).find(item => item.tag_name === tag);
+  if (!release || !release.draft) throw new Error('Expected draft release after upload.');
   const assets = release.assets;
   const requiredAssets = [[archiveName, archive.length], [exeName, fs.statSync(exePath).size], [checksumName, fs.statSync(checksumPath).size]];
   if (assets.length !== 3 || requiredAssets.some(([name, size]) => !assets.some(asset => asset.name === name && asset.size === size && asset.state === 'uploaded'))) throw new Error('Incomplete release upload; leaving draft.');
