@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ChevronDown, CircleUserRound, HeartHandshake, Link2, PawPrint, Plus } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowRightLeft, ChevronDown, CircleUserRound, HeartHandshake, Link2, PawPrint, Plus, Search } from "lucide-react";
 import type { Character, PairLink, ParentLink, Project, RelationshipDirection, RelationshipLabel } from "../types";
 import { makeId } from "../lib/id";
 import { wouldCreateAncestorCycle } from "../lib/project";
@@ -19,6 +19,7 @@ const relationshipPresets = [
   ["Враги", "swords", "#5C294D"],
   ["Разведены", "broken", "#8096A6"],
 ] as const;
+const familyKinds = ["Биологическое", "Усыновление", "Опека", "Приёмная семья", "Отчим / мачеха", "Донор", "Создатель", "Неизвестно"];
 
 export type LinkEdit = { kind: "parent"; link: ParentLink } | { kind: "pair"; pair: PairLink; label: RelationshipLabel };
 
@@ -58,24 +59,30 @@ function CharacterPicker({
   onChange: (id: string) => void;
   disabled?: boolean;
 }) {
-  const { t, valueLabel } = useI18n();
+  const { t, valueLabel, locale } = useI18n();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const listId = useId();
   const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const selected = candidates.find((character) => character.id === value) ?? candidates[0];
+  const normalize = (text: string) => text.normalize("NFKC").toLocaleLowerCase(locale).replaceAll("ё", "е");
+  const tokens = normalize(search).trim().split(/\s+/).filter(Boolean);
+  const filtered = candidates.filter(character => {
+    const names = normalize([character.displayName, character.firstName, character.lastName, ...character.aliases].join(" "));
+    return tokens.every(token => names.includes(token));
+  });
+  const close = () => { setOpen(false); trigger.current?.focus(); };
+  const choose = (id: string) => { onChange(id); close(); };
 
   useEffect(() => {
     if (!open) return;
-    const close = (event: PointerEvent) => {
+    const closeOnOutside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("pointerdown", closeOnOutside);
     return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("pointerdown", closeOnOutside);
     };
   }, [open]);
 
@@ -83,6 +90,7 @@ function CharacterPicker({
     <div className="field character-picker-field" ref={root}>
       <span>{label}</span>
       <button
+        ref={trigger}
         type="button"
         disabled={disabled}
         className="character-picker-trigger"
@@ -90,36 +98,54 @@ function CharacterPicker({
         aria-label={label}
         aria-expanded={open}
         aria-haspopup="listbox"
-        onClick={() => setOpen((current) => !current)}
+        aria-controls={open ? listId : undefined}
+        onClick={() => { setSearch(""); setOpen((current) => !current); }}
       >
         {selected && <CharacterAvatar character={selected} />}
         <span>
           <strong>{selected?.displayName ?? t("chooseCharacter")}</strong>
-          {selected && <small>{valueLabel(selected.lifeStage)} · {t("generation")} {selected.generation}</small>}
+          {selected && <small>{valueLabel(selected.lifeStage)}</small>}
         </span>
         <ChevronDown size={15} />
       </button>
       {open && (
-        <div className="character-picker-menu" role="listbox" aria-label={label}>
-          {candidates.map((character) => (
+        <div className="character-picker-menu" data-escape-layer onKeyDown={event => {
+          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
+        }}>
+          <div className="character-picker-search"><Search size={15} aria-hidden="true" /><input
+            type="search" autoFocus value={search} placeholder={t("searchCharacter")} aria-label={`${t("searchCharacter")} ${label}`}
+            onChange={event => setSearch(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "ArrowDown") { event.preventDefault(); root.current?.querySelector<HTMLButtonElement>('[role="option"]')?.focus(); }
+              if (event.key === "Enter") { event.preventDefault(); if (filtered.length === 1) choose(filtered[0].id); }
+            }}
+          /></div>
+          <div className="character-picker-options" id={listId} role="listbox" aria-label={label} onKeyDown={event => {
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+            event.preventDefault();
+            const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+            if (!options.length) return;
+            const index = options.indexOf(document.activeElement as HTMLButtonElement);
+            options[(index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus();
+          }}>
+          {filtered.map((character) => (
             <button
               type="button"
               role="option"
               aria-selected={character.id === value}
               className={character.id === value ? "active" : ""}
               key={character.id}
-              onClick={() => {
-                onChange(character.id);
-                setOpen(false);
-              }}
+              onClick={() => choose(character.id)}
             >
               <CharacterAvatar character={character} />
               <span>
                 <strong>{character.displayName}</strong>
-                <small>{valueLabel(character.lifeStage)} · {t("generation")} {character.generation}</small>
+                <small>{valueLabel(character.lifeStage)}</small>
               </span>
             </button>
           ))}
+          </div>
+          {!filtered.length && <p className="character-picker-empty" role="status">{t("emptySearch")}</p>}
         </div>
       )}
     </div>
@@ -217,7 +243,11 @@ export function LinkDialog({
             onChange={setFromId}
             disabled={Boolean(editing)}
           />
-          <div className="connection-symbol">{kind === "parent" ? <ArrowDown /> : <Link2 />}</div>
+          {kind === "parent" ? <button type="button" className="connection-symbol connection-swap"
+            aria-label={t("swapParentChild")} title={t("swapParentChild")}
+            disabled={Boolean(editing) || !fromId || !toId || fromId === toId}
+            onClick={() => { setFromId(toId); setToId(fromId); }}><ArrowRightLeft size={20} aria-hidden="true" /></button>
+            : <div className="connection-symbol"><Link2 /></div>}
           <CharacterPicker
             label={kind === "parent" ? t("child") : t("characterB")}
             candidates={candidates}
@@ -237,17 +267,20 @@ export function LinkDialog({
           <div className="form-grid">
             <label className="field span-2">
               <span>{t("familyType")}</span>
-              <input list="family-kinds" value={parentKind} onChange={(event) => { setParentKind(event.target.value); setBiological(event.target.value === "Биологическое" ? "yes" : "no"); }} />
-              <datalist id="family-kinds">{["Биологическое", "Усыновление", "Опека", "Приёмная семья", "Отчим / мачеха", "Донор", "Создатель", "Неизвестно"].map((value) => <option key={value} value={value}>{valueLabel(value)}</option>)}</datalist>
+              <input list="family-kinds" value={valueLabel(parentKind)} onChange={(event) => {
+                const canonical = familyKinds.find(kind => valueLabel(kind) === event.target.value) ?? event.target.value;
+                setParentKind(canonical); setBiological(canonical === "Биологическое" ? "yes" : "no");
+              }} />
+              <datalist id="family-kinds">{familyKinds.map(value => <option key={value} value={valueLabel(value)} />)}</datalist>
             </label>
             <label className="field span-2"><span>{t("biologicalLink")}</span><select value={biological} onChange={(event) => setBiological(event.target.value as ParentLink["biological"])}><option value="yes">{t("yes")}</option><option value="no">{t("no")}</option><option value="unknown">{t("unknown")}</option></select></label>
             <label className="field">
               <span>{t("parentRole")}</span>
-              <input value={parentRole} onChange={(event) => setParentRole(event.target.value)} />
+              <input value={valueLabel(parentRole)} onChange={(event) => setParentRole(event.target.value)} />
             </label>
             <label className="field">
               <span>{t("childRole")}</span>
-              <input value={childRole} onChange={(event) => setChildRole(event.target.value)} />
+              <input value={valueLabel(childRole)} onChange={(event) => setChildRole(event.target.value)} />
             </label>
           </div>
         ) : (
@@ -267,7 +300,7 @@ export function LinkDialog({
                 ))}
               </div>
             </div>
-            <label className="field"><span>{t("customRelationship")}</span><input value={relationship.name} onChange={(event) => setRelationship({ ...relationship, name: event.target.value })} /></label>
+            <label className="field"><span>{t("customRelationship")}</span><input value={valueLabel(relationship.name)} onChange={(event) => setRelationship({ ...relationship, name: event.target.value })} /></label>
             <label className="field">
               <span>{t("direction")}</span>
               <select value={direction} onChange={(event) => setDirection(event.target.value as RelationshipDirection)}>

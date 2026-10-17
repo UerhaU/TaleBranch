@@ -1,6 +1,6 @@
 # TaleBranch
 
-**v0.1.0-alpha.1 · Early alpha / Ранняя альфа**
+Русский · English · Deutsch · Français · Español · Português (Brasil) · 简体中文 · Српски · Коми-пермяцкӧй
 
 [Русский](#русский) · [English](#english)
 
@@ -8,112 +8,100 @@
 
 **У каждой ветви — своя история.**
 
-TaleBranch — разрабатываемое локальное приложение для семейных древ, связей и историй персонажей. Проект задуман прежде всего для династий The Sims 4, но подходит и для персонажей собственных вымышленных миров.
+TaleBranch — локальное приложение для семейных древ, связей и историй персонажей. Оно создано прежде всего для династий The Sims 4 и подходит для собственных вымышленных миров.
 
-### Состояние проекта
+### Возможности
 
-**Ранняя альфа: рабочий прототип, который ещё активно меняется.** Это первая публичная демонстрация основы приложения, а не завершённый продукт. Часть возможностей реализована, другие пока представлены заготовками. Возможны ошибки и изменения интерфейса, формата проектов и поведения функций.
+- Карточки персонажей и питомцев, биографии, заметки и фотографии по этапам жизни.
+- Родство и личные отношения с подписями на древе; отдельные фильтры для каждого вида связей.
+- Поиск персонажей при создании связи и обмен местами родителя и ребёнка.
+- Игровые справочники с поиском и иконками: черты, жизненные цели, навыки, предпочтения, карьеры, породы, оккультные типы и причины смерти.
+- Выбор хозяев питомца: для создания нужен хотя бы один хозяин.
+- Корзина с восстановлением и безвозвратным удалением карточек.
+- Экспорт династии в `.dynasty-tree` и изображения древа в PNG.
 
-В прототипе есть поле древа, карточки персонажей и питомцев, родственные и личные связи, биографии, фотографии этапов жизни, локальное сохранение и экспорт. Наличие функции в интерфейсе не означает, что она полностью готова и проверена во всех сценариях.
+### Запуск для Windows
 
-Пока не завершены хранение в SQLite и отдельных файлах медиа, автоматические резервные копии, история профессий, редактируемые справочники этапов жизни и пользовательские поля. Проверка обновлений и поддержка через DonationAlerts пока представлены заглушками. В текущей реализации данные и фотографии хранятся в localStorage, объём которого ограничен. Для экспериментов используйте тестовые проекты; нужные данные сохраняйте отдельным экспортом.
+1. На странице [Releases](https://github.com/UerhaU/TaleBranch/releases) выберите выпуск с архивом `TaleBranch-<версия>-portable.zip`. Архивы **Source code** содержат исходники.
+2. Распакуйте portable в папку, доступную для записи, например `D:\TaleBranch`.
+3. Запустите `TaleBranch-<версия>-portable.exe` двойным щелчком.
 
-На поле древа отображается родство «родитель → ребёнок». Личные отношения хранятся и редактируются в профилях персонажей.
+Нужен Microsoft Edge WebView2 Runtime: [загрузка с сайта Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-Это выпуск исходного кода. Готовые установщики TaleBranch пока не публикуются.
+Подробная [инструкция пользователя](docs/PORTABLE_RU.md) объясняет создание династии, загрузку фотографий, связи, сохранение и перенос данных.
 
-### Запуск из исходников
+### Где хранятся данные
 
-Требуется Node.js 22.12+ или более новая поддерживаемая версия и npm.
+Вы выбираете место сохранения, а TaleBranch создаёт внутри папку с названием династии и файлом `dynasty.json`. В нём хранятся карточки, фотографии, связи и корзина. Существующие династии открываются в своих папках; программа записывает изменения прямо туда.
 
-```bash
+Настройки, список недавних и ссылка на последнюю открытую династию находятся в `TaleBranch-data` рядом с `.exe`. При следующем запуске последняя династия открывается автоматически. Если династия не выбрана, появляется начальный экран с кнопками создания, открытия и импорта.
+
+**Подтверждённое удаление династии удаляет её папку целиком, со всеми вложенными файлами.** Для важных династий храните отдельные копии: автоматических резервных копий пока нет.
+
+### Ограничения
+
+Приложение находится в бета-разработке. Данные и фотографии хранятся вместе в JSON; SQLite и отдельные медиафайлы пока не используются. Автоматическое резервное копирование и обновление не реализованы. Страница DonationAlerts пока является заглушкой. Portable предназначен для Windows x64; установщика и цифровой подписи нет.
+
+### Разработка
+
+Для браузерного режима нужны Node.js 22.12+ и npm:
+
+```sh
 npm ci
 npm run dev
 ```
 
-Откройте `http://localhost:1420`. Это режим разработки интерфейса в браузере. Для настольного режима дополнительно нужны Rust и зависимости Tauri 2 для вашей ОС.
+Откройте `http://localhost:1420`. Для настольной разработки дополнительно нужны Rust и зависимости Tauri 2. Проверки: `npm test`, `npx tsc -b`; нативное хранение: `cargo test --manifest-path src-tauri/Cargo.toml --lib`.
 
-Проверки:
+Команда сборки portable — `npm run build:portable`. Игровые иконки из локального набора не включены в Git. Для сборки чистого клона с заменяющими значками используйте `powershell -File scripts/build-portable.ps1 -AllowMissingIcons`. Текстовые справочники входят в исходники; Access для запуска не требуется. Минимальный размер окна — 1024 × 720.
 
-```bash
-npm test
-npx tsc -b
-```
+### Обратная связь и документы
 
-Основная целевая платформа — Windows x64. Поддержка других настольных ОС пока не подтверждена. Минимальный размер окна — 1024 × 720.
+Сообщайте об ошибках и неточных переводах через [GitHub Issues](https://github.com/UerhaU/TaleBranch/issues). Укажите версию, шаги воспроизведения и ожидаемый результат; не прикладывайте частные династии без необходимости.
 
-### Обратная связь
+- [История изменений](CHANGELOG.md)
+- [Обработка пользовательских данных](PRIVACY.md)
+- [Источники локализации справочников](docs/CATALOG_LOCALIZATION_RU.md)
+- [Лицензия GPL-3.0-or-later](LICENSE) и [сторонние компоненты](THIRD_PARTY_NOTICES.md)
 
-Откройте вкладку **Issues → New issue** в этом репозитории. Для перевода выберите **Translation correction / Исправление перевода**, для других ошибок — **Bug report / Сообщить об ошибке**.
-
-Укажите версию приложения, что произошло и как повторить проблему. Не прикрепляйте личные данные и частные проекты без необходимости.
-
-### Данные и лицензия
-
-Приложение задумано для локальной работы без регистрации и облачного сервера. Подробности: [PRIVACY.md](./PRIVACY.md).
-
-Лицензия исходного кода — GPL-3.0-or-later, см. [LICENSE](./LICENSE). Сторонние компоненты перечислены в [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
-
-TaleBranch — независимый неофициальный проект, не связанный с Electronic Arts или Maxis. The Sims и другие упомянутые названия принадлежат их правообладателям.
-
----
+TaleBranch — независимый неофициальный проект, не связанный с Electronic Arts или Maxis. The Sims и игровые материалы принадлежат их правообладателям.
 
 ## English
 
 **Every branch has a story.**
 
-TaleBranch is a local application in development for character family trees, relationships, and life stories. It is designed primarily for The Sims 4 dynasties, while also supporting characters from other fictional worlds.
+TaleBranch is a local app for character family trees, relationships and life stories, designed for The Sims 4 dynasties and other fictional worlds.
 
-### Project status
+### Features
 
-**Early alpha: a working prototype under active development.** This is the first public demonstration of the application's foundation, rather than a finished product. Some features are implemented; others are placeholders. Expect bugs and changes to the interface, project format, and feature behavior.
+- Character and pet profiles, biographies, notes and life-stage photos.
+- Parent–child and labelled personal connections, with independent tree filters.
+- Searchable character selectors and a parent–child swap button when creating connections.
+- Searchable game catalogs with icons, including traits, aspirations, skills, preferences, careers, breeds, occult types and death causes.
+- Pets require at least one owner; trash supports restoration and permanent deletion.
+- Dynasty export to `.dynasty-tree` and tree image export to PNG.
 
-The prototype includes a tree canvas, character and pet profiles, family and personal relationships, biographies, life-stage photos, local saving, and export. A feature appearing in the interface does not mean it is complete or tested in every scenario.
+### Run on Windows
 
-SQLite storage, separate media files, automatic backups, career history, editable life-stage definitions, and custom fields are not complete. Update checking and DonationAlerts support are currently placeholders. Data and photos are currently stored in localStorage, which has limited capacity. Use test projects while exploring, and export separate copies of any data you want to keep.
+1. Find a release containing `TaleBranch-<version>-portable.zip` under [Releases](https://github.com/UerhaU/TaleBranch/releases). **Source code** archives are for development.
+2. Extract the portable archive into a writable folder and double-click its `.exe`.
 
-The tree canvas displays parent–child connections. Personal relationships are stored and edited in character profiles.
+[Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) is required.
 
-This is a source-code release. TaleBranch installers are not published yet.
+[User guide (Russian)](docs/PORTABLE_RU.md)
 
-### Run from source
+### Storage
 
-Requires Node.js 22.12+ or a newer supported version, and npm.
+Choose a save location: the app creates a named dynasty folder containing `dynasty.json`, including profiles, photos, connections and trash. Existing folders are opened in place. Settings, recent folders and the last opened dynasty reference live in `TaleBranch-data` beside the executable. The last dynasty reopens on startup; otherwise the welcome screen offers creation, opening and import.
 
-```bash
-npm ci
-npm run dev
-```
+**Confirming dynasty deletion removes its entire folder and all nested files.** Keep separate copies of important data; automatic backups are not implemented.
 
-Open `http://localhost:1420`. This runs the interface in a browser for development. Desktop development also requires Rust and the Tauri 2 prerequisites for your operating system.
+### Limitations and development
 
-Checks:
+TaleBranch is in beta development for Windows x64. Data and photos are stored together in JSON. SQLite, separate media files, automatic backups and updates, an installer and a digital signature are not available. DonationAlerts support is a placeholder.
 
-```bash
-npm test
-npx tsc -b
-```
+For browser development, install Node.js 22.12+ and run `npm ci` followed by `npm run dev`; open `http://localhost:1420`. Desktop development also requires Rust and Tauri 2 prerequisites. Checks: `npm test`, `npx tsc -b`, and `cargo test --manifest-path src-tauri/Cargo.toml --lib`. To build from a clean clone without local game icons, use `powershell -File scripts/build-portable.ps1 -AllowMissingIcons`; missing icons use placeholders.
 
-The primary target is Windows x64. Support for other desktop operating systems has not been verified. Minimum window size: 1024 × 720.
+Report bugs or translation corrections through [GitHub Issues](https://github.com/UerhaU/TaleBranch/issues), including the version and reproduction steps. See [CHANGELOG](CHANGELOG.md), [privacy](PRIVACY.md), [GPL-3.0-or-later license](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
-### Feedback
-
-Open this repository's **Issues → New issue** tab. Choose **Translation correction / Исправление перевода** for wording corrections, or **Bug report / Сообщить об ошибке** for other problems.
-
-Include the application version, what happened, and how to reproduce the problem. Avoid attaching personal information or private projects unless necessary.
-
-### Data and license
-
-The application is designed for local use without registration or a cloud server. See [PRIVACY.md](./PRIVACY.md).
-
-Source code is licensed under GPL-3.0-or-later; see [LICENSE](./LICENSE). Third-party components are listed in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
-
-TaleBranch is an independent, unofficial project and is not affiliated with Electronic Arts or Maxis. The Sims and other mentioned names belong to their respective owners.
-
----
-
-### Переводы / Translations
-
-**Коми-пермяцкӧй:** Переводын ошибка адззин кӧ, гиж GitHub Issues-ӧ. Инды, кытӧн ошибкаыс да кыдз колӧ гижны.
-
-**Српски:** Ако приметите нетачан превод, пријавите га у одељку GitHub Issues. Наведите где се грешка налази, тренутни текст и предложени исправан превод.
+TaleBranch is an independent unofficial project, not affiliated with Electronic Arts or Maxis. The Sims and game assets belong to their respective owners.

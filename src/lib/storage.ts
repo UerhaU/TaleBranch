@@ -1,11 +1,26 @@
 import type { Project, ProjectSummary } from "../types";
-import { createDemoProject } from "./project";
 import { makeId } from "./id";
 import { parseProject } from "./validation";
+import LZString from "lz-string";
+import { isTauri } from "@tauri-apps/api/core";
+import { saveDesktopExport } from "./desktopStorage";
 
 const INDEX_KEY = "dynasty-chronicles:index";
 const PROJECT_PREFIX = "dynasty-chronicles:project:";
 const ACTIVE_KEY = "dynasty-chronicles:active";
+const COMPRESSED_PREFIX = "dynasty-lz16-v1:";
+
+function encodeProject(project: Project): string {
+  const json = JSON.stringify(project);
+  const compressed = COMPRESSED_PREFIX + LZString.compressToUTF16(json);
+  return compressed.length < json.length ? compressed : json;
+}
+
+function decodeProject(raw: string): Project {
+  const json = raw.startsWith(COMPRESSED_PREFIX) ? LZString.decompressFromUTF16(raw.slice(COMPRESSED_PREFIX.length)) : raw;
+  if (!json) throw new Error("INVALID_COMPRESSED_PROJECT");
+  return parseProject(JSON.parse(json));
+}
 
 const legacyPalette: Record<string, string> = {
   "#b7744c": "#3E4B8E",
@@ -60,7 +75,7 @@ function readIndex(): ProjectSummary[] {
     if (!key?.startsWith(PROJECT_PREFIX)) continue;
     if (indexed.has(key.slice(PROJECT_PREFIX.length))) continue;
     try {
-      projects.push(summary(parseProject(JSON.parse(localStorage.getItem(key)!))));
+      projects.push(summary(decodeProject(localStorage.getItem(key)!)));
     } catch {
       // Corrupt source records are retained, and opening one reports an error.
     }
@@ -85,7 +100,7 @@ export function listProjects(): ProjectSummary[] {
 }
 
 export function saveProject(project: Project): void {
-  localStorage.setItem(`${PROJECT_PREFIX}${project.id}`, JSON.stringify(project));
+  localStorage.setItem(`${PROJECT_PREFIX}${project.id}`, encodeProject(project));
   const index = readIndex().filter((item) => item.id !== project.id);
   index.unshift(summary(project));
   localStorage.setItem(INDEX_KEY, JSON.stringify(index));
@@ -94,10 +109,10 @@ export function saveProject(project: Project): void {
 
 export function loadProject(id: string): Project | null {
   const raw = localStorage.getItem(`${PROJECT_PREFIX}${id}`);
-  return raw ? migratePalette(parseProject(JSON.parse(raw))) : null;
+  return raw ? migratePalette(decodeProject(raw)) : null;
 }
 
-export function loadInitialProject(): Project {
+export function loadInitialProject(): Project | null {
   const activeId = localStorage.getItem(ACTIVE_KEY);
   const active = activeId ? loadProject(activeId) : null;
   if (active) return active;
@@ -107,24 +122,63 @@ export function loadInitialProject(): Project {
   if (Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).some((key) => key?.startsWith(PROJECT_PREFIX))) {
     throw new Error("PROJECT_RECOVERY_REQUIRED");
   }
-  const demo = createDemoProject();
-  return demo;
+  return null;
 }
 
-export function deleteStoredProject(id: string): void {
-  localStorage.removeItem(`${PROJECT_PREFIX}${id}`);
-  localStorage.setItem(INDEX_KEY, JSON.stringify(readIndex().filter((item) => item.id !== id)));
-  if (localStorage.getItem(ACTIVE_KEY) === id) localStorage.removeItem(ACTIVE_KEY);
+// Put the irreversible change last. A failed preparatory write leaves its source intact.
+function writeWithRollback(changes: Array<[string, string | null]>): void {
+  const previous = changes.map(([key]) => [key, localStorage.getItem(key)] as const);
+  let completed = 0;
+  try {
+    for (const [key, value] of changes) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+      completed++;
+    }
+  } catch (error) {
+    for (let index = completed - 1; index >= 0; index--) {
+      const [key, value] = previous[index];
+      try {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      } catch { /* Project records remain recoverable through readIndex. */ }
+    }
+    throw error;
+  }
+}
+
+export function saveProjectIrreversibly(project: Project): void {
+  const index = [summary(project), ...readIndex().filter((item) => item.id !== project.id)];
+  writeWithRollback([
+    [INDEX_KEY, JSON.stringify(index)],
+    [ACTIVE_KEY, project.id],
+    [`${PROJECT_PREFIX}${project.id}`, encodeProject(project)],
+  ]);
+}
+
+export function deleteStoredProject(id: string, replacement?: Project): void {
+  if (id === replacement?.id) throw new Error("CANNOT_DELETE_REPLACEMENT");
+  const remaining = readIndex().filter((item) => item.id !== id && item.id !== replacement?.id);
+  const index = replacement ? [summary(replacement), ...remaining] : remaining;
+  const changes: Array<[string, string | null]> = replacement ? [[`${PROJECT_PREFIX}${replacement.id}`, encodeProject(replacement)]] : [];
+  changes.push([INDEX_KEY, JSON.stringify(index)], [ACTIVE_KEY, replacement?.id ?? null], [`${PROJECT_PREFIX}${id}`, null]);
+  writeWithRollback(changes);
 }
 
 function downloadText(contents: string, filename: string) {
+  if (isTauri()) { void saveDesktopExport(filename, contents).catch(() => {}); return; }
   const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Attach the link so browsers that ignore detached download links can save it.
+  document.body.append(anchor);
+  try { anchor.click(); }
+  finally {
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
 
 export function downloadRecoveryData(): void {
@@ -140,6 +194,20 @@ async function contentHash(project: unknown): Promise<string> {
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export async function serializeProject(project: Project): Promise<string> {
+  return JSON.stringify({ app: "dynasty-chronicles", formatVersion: 1,
+    contentHash: await contentHash(project), project }, null, 2);
+}
+
+export async function readProjectDocument(text: string): Promise<Project> {
+  const raw = JSON.parse(text);
+  if (!raw || raw.app !== "dynasty-chronicles" || raw.formatVersion !== 1) throw new Error("INVALID_PROJECT_FORMAT");
+  if (raw.contentHash !== undefined && raw.contentHash !== await contentHash(raw.project)) throw new Error("PROJECT_CHECKSUM_MISMATCH");
+  const project = parseProject(raw.project);
+  if (raw.checksum !== undefined && raw.checksum !== `${project.characters.length}:${project.parentLinks.length}:${project.pairLinks.length}`) throw new Error("PROJECT_CHECKSUM_MISMATCH");
+  return project;
+}
+
 export async function downloadProject(project: Project): Promise<void> {
   const manifest = {
     app: "dynasty-chronicles",
@@ -149,19 +217,14 @@ export async function downloadProject(project: Project): Promise<void> {
     contentHash: await contentHash(project),
     project,
   };
-  downloadText(JSON.stringify(manifest, null, 2), `${project.name.replace(/[^\p{L}\p{N}_-]+/gu, "_") || "project"}.dynasty-tree`);
+  const filename = `${project.name.replace(/[^\p{L}\p{N}_-]+/gu, "_") || "project"}.dynasty-tree`;
+  const contents = JSON.stringify(manifest, null, 2);
+  if (isTauri()) await saveDesktopExport(filename, contents);
+  else downloadText(contents, filename);
 }
 
 export async function importProject(file: File, copySuffix: string): Promise<Project> {
-  const raw = JSON.parse(await file.text());
-  if (!raw || raw.app !== "dynasty-chronicles" || raw.formatVersion !== 1) {
-    throw new Error("INVALID_PROJECT_FORMAT");
-  }
-  if (raw.contentHash !== undefined && raw.contentHash !== await contentHash(raw.project)) throw new Error("PROJECT_CHECKSUM_MISMATCH");
-  const project = parseProject(raw.project);
-  if (raw.checksum !== undefined && raw.checksum !== `${project.characters.length}:${project.parentLinks.length}:${project.pairLinks.length}`) {
-    throw new Error("PROJECT_CHECKSUM_MISMATCH");
-  }
+  const project = await readProjectDocument(await file.text());
   return {
     ...project,
     id: makeId("project"),

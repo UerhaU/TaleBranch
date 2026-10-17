@@ -40,7 +40,7 @@ export function createCharacter(
     tags: [],
     color: "#3E4B8E",
     ownerIds: [],
-    stages: createStages(type),
+    stages: createStages(type, patch.species),
     createdAt: now(),
     updatedAt: now(),
     ...patch,

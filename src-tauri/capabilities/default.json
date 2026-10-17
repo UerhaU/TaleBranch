@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Базовые разрешения главного окна",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-destroy"]
+  "permissions": ["core:default", "core:window:allow-destroy", "core:window:allow-close"]
 }

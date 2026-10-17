@@ -29,7 +29,10 @@ export function Modal({
       // A nested dialog owns keyboard input while it is open.
       const dialogs = document.querySelectorAll('[role="dialog"]');
       if (dialogs[dialogs.length - 1] !== root) return;
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close.current(); }
+      if (event.key === "Escape") {
+        if ((event.target as HTMLElement | null)?.closest("[data-escape-layer]")) return;
+        event.preventDefault(); event.stopPropagation(); close.current();
+      }
       if (event.key !== "Tab") return;
       const focusable = Array.from(root.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]'))
         .filter((element) => element.getClientRects().length > 0);

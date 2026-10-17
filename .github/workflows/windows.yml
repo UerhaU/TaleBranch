@@ -1,4 +1,4 @@
-name: Windows build (manual)
+name: Windows portable candidate (manual)
 
 on:
   workflow_dispatch:
@@ -17,12 +17,14 @@ jobs:
           cache: npm
       - run: rustup default stable
       - run: npm ci
-      - run: npm test
-      - run: npm run tauri build -- --bundles nsis
+      - name: Test and build portable without the local game icon set
+        shell: powershell
+        run: ./scripts/build-portable.ps1 -AllowMissingIcons
       - uses: actions/upload-artifact@v4
         with:
-          name: talebranch-windows
+          name: talebranch-windows-portable
           if-no-files-found: error
           path: |
-            src-tauri/target/release/talebranch.exe
-            src-tauri/target/release/bundle/nsis/*.exe
+            release/portable/TaleBranch-*-portable.exe
+            release/portable/TaleBranch-*-portable.zip
+            release/portable/TaleBranch-*-SHA256.txt

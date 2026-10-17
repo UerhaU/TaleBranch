@@ -1,0 +1,29 @@
+name: Publish tested beta portable
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/releases/*.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-beta
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publish the owner-tested executable with updated documents
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-tested-beta.cjs

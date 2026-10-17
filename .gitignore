@@ -40,6 +40,14 @@ coverage/
 *.sqlite-*
 *.db
 *.db-*
+*.accdb
+*.laccdb
+*.mdb
+/local-data/
+/public/game-icons/
+TaleBranch-data/
+dynasty.json
+.talebranch.lock
 *-recovery*.json
 *.exe
 *.msi

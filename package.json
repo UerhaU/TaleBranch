@@ -1,8 +1,8 @@
 {
   "name": "talebranch",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-beta.1",
   "private": true,
-  "description": "Early alpha of an offline editor for character family trees, relationships, and life stories.",
+  "description": "Offline desktop editor for character family trees, relationships, and life stories — first beta candidate.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,13 +11,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1"
+    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4",
     "@xyflow/react": "^12.8.2",
     "html-to-image": "^1.11.13",
     "lucide-react": "^0.468.0",
+    "lz-string": "1.5.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

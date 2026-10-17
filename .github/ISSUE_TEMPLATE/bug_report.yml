@@ -1,5 +1,5 @@
 name: "Bug report / Сообщить об ошибке"
-description: "Describe a problem in the early alpha / Описать проблему в ранней альфа-версии."
+description: "Report a problem in a test build / Сообщить о проблеме в тестовой сборке."
 title: "[Bug] "
 body:
   - type: textarea

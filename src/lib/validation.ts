@@ -1,4 +1,5 @@
-import type { Character, PairLink, ParentLink, Project } from "../types";
+import type { Character, CharacterCatalog, PairLink, ParentLink, Project } from "../types";
+import { emptyCharacterCatalog } from "./catalog";
 import { createCharacter } from "./project";
 import { normalizePairLink } from "./relationships";
 
@@ -17,6 +18,25 @@ const finite = (value: unknown): number => typeof value === "number" && Number.i
 const unique = (values: string[]) => new Set(values).size === values.length || invalid();
 const image = (value: unknown) => /^data:image\/(?:jpeg|png|webp);base64,[a-zA-Z0-9+/=\r\n]+$/.test(string(value)) ? string(value) : invalid();
 
+function catalog(value: unknown): CharacterCatalog {
+  const raw = record(value);
+  if (raw.version !== 1) invalid();
+  const result = emptyCharacterCatalog();
+  for (const key of ["aspirationId", "breedId", "customBreed", "deathCauseId"] as const) result[key] = string(raw[key] ?? "");
+  for (const key of ["traitIds", "occultIds"] as const) { result[key] = array(raw[key] ?? []).map(string); unique(result[key]); }
+  result.neutered = oneOf(raw.neutered ?? "unknown", ["unknown", "yes", "no"]);
+  result.skills = array(raw.skills ?? []).map(item => { const row = record(item); const level = finite(row.level); if (level < 0) invalid(); return { id: string(row.id), level }; });
+  result.preferences = array(raw.preferences ?? []).map(item => { const row = record(item); return { id: string(row.id), rating: oneOf(row.rating, ["like", "dislike"]) }; });
+  result.careers = array(raw.careers ?? []).map(item => {
+    const row = record(item); const level = row.level === undefined ? undefined : finite(row.level);
+    if (level !== undefined && level < 0) invalid();
+    return { id: id(row.id), careerId: string(row.careerId ?? ""), customName: string(row.customName ?? ""), branch: string(row.branch ?? ""), title: string(row.title ?? ""),
+      level, start: string(row.start ?? ""), end: string(row.end ?? ""), current: boolean(row.current), notes: string(row.notes ?? "") };
+  });
+  unique(result.skills.map(row => row.id)); unique(result.preferences.map(row => row.id)); unique(result.careers.map(row => row.id));
+  return result;
+}
+
 function character(value: unknown): Character {
   const raw = record(value);
   const type = oneOf(raw.type, ["sim", "pet", "custom"]);
@@ -28,6 +48,7 @@ function character(value: unknown): Character {
     result[key] = raw[key] === undefined ? [] : array(raw[key]).map(string);
   }
   result.status = oneOf(raw.status, ["alive", "dead", "missing", "unknown"]);
+  if (raw.catalog !== undefined) result.catalog = catalog(raw.catalog);
   result.generation = finite(raw.generation);
   result.stages = array(raw.stages).map((item) => {
     const stage = record(item);
