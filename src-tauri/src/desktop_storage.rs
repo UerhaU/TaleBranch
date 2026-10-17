@@ -29,12 +29,13 @@ pub struct Recent { pub id: String, pub name: String, pub directory: Directory }
 pub struct Storage {
     roots: Mutex<HashSet<PathBuf>>,
     settings: PathBuf,
+    session: PathBuf,
     settings_lock: Mutex<()>,
 }
 impl Storage {
     pub fn new(data: &Path) -> io::Result<Self> {
         fs::create_dir_all(data)?;
-        Ok(Self { roots: Mutex::new(HashSet::new()), settings: data.join("recent-folders.json"), settings_lock: Mutex::new(()) })
+        Ok(Self { roots: Mutex::new(HashSet::new()), settings: data.join("recent-folders.json"), session: data.join("last-folder.json"), settings_lock: Mutex::new(()) })
     }
     pub fn allow(&self, path: &Path) -> Result<Directory> {
         let path = fs::canonicalize(path)?;
@@ -109,6 +110,21 @@ impl Storage {
                 } else { return Err(failure("UNMANAGED_FILE")); }
                 Ok(Value::Null)
             }
+            Request::DeleteDynasty { directory, expected } => {
+                let path = self.directory(&directory)?;
+                // Resolve and check the exact dynasty before recursive deletion.
+                // Never allow a drive root or the app's own settings container.
+                let settings = fs::canonicalize(self.settings.parent().unwrap())?;
+                if path.parent().is_none() || path.file_name().is_none() || settings.starts_with(&path) {
+                    return Err(failure("INVALID_DYNASTY_DIRECTORY"));
+                }
+                let _lock = lock_directory(&path)?;
+                let text = fs::read_to_string(self.file(&directory)?)?;
+                if hash(&text) != expected { return Err(failure("FOLDER_CONFLICT")); }
+                validate_document(&text)?;
+                fs::remove_dir_all(&path)?;
+                Ok(Value::Null)
+            }
         }
     }
     pub fn recent(&self) -> Result<Vec<Recent>> {
@@ -130,16 +146,42 @@ impl Storage {
         let _lock = self.settings_lock.lock().unwrap();
         let mut entries = self.read_recent()?;
         entries.retain(|entry| entry.directory.path != info.path);
-        entries.insert(0, Recent { id: hash(&info.path), name, directory: info });
+        let active = Recent { id: hash(&info.path), name, directory: info };
+        entries.insert(0, active.clone());
         atomic_write(&self.settings, &serde_json::to_vec_pretty(&entries).map_err(|error| failure(&error.to_string()))?)?;
+        atomic_write(&self.session, &serde_json::to_vec_pretty(&active).map_err(|error| failure(&error.to_string()))?)?;
+        Ok(())
+    }
+    pub fn last_folder(&self) -> Result<Option<Recent>> {
+        let _lock = self.settings_lock.lock().unwrap();
+        let entry: Option<Recent> = match fs::read(&self.session) {
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| failure(&error.to_string()))?,
+            // One-time migration from versions that only stored recents. An
+            // explicit close writes null, so it never falls back to another folder.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => self.read_recent()?.into_iter().next(),
+            Err(error) => return Err(error.into()),
+        };
+        if let Some(entry) = &entry { self.allow(Path::new(&entry.directory.path))?; }
+        Ok(entry)
+    }
+    pub fn clear_last_folder(&self) -> Result<()> {
+        let _lock = self.settings_lock.lock().unwrap();
+        atomic_write(&self.session, b"null")?;
         Ok(())
     }
     pub fn forget(&self, directory: &str) -> Result<()> {
-        let path = self.directory(directory)?;
+        // A deleted dynasty no longer has a canonical path. Removing its saved
+        // bookmark must still work, without accessing any user files.
+        let path = fs::canonicalize(directory).unwrap_or_else(|_| PathBuf::from(directory));
         let _lock = self.settings_lock.lock().unwrap();
         let mut entries = self.read_recent()?;
         entries.retain(|entry| Path::new(&entry.directory.path) != path);
         atomic_write(&self.settings, &serde_json::to_vec_pretty(&entries).map_err(|error| failure(&error.to_string()))?)?;
+        if let Ok(bytes) = fs::read(&self.session) {
+            if let Ok(Some(active)) = serde_json::from_slice::<Option<Recent>>(&bytes) {
+                if Path::new(&active.directory.path) == path { atomic_write(&self.session, b"null")?; }
+            }
+        }
         Ok(())
     }
 }
@@ -153,6 +195,7 @@ pub enum Request {
     Read { directory: String },
     Write { directory: String, text: String, expected: String },
     Remove { directory: String, name: String },
+    DeleteDynasty { directory: String, expected: String },
 }
 fn describe(path: &Path) -> Directory {
     Directory { path: path.to_string_lossy().into_owned(), name: path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned() }
@@ -238,5 +281,51 @@ mod tests {
         let temp = tempfile::tempdir().unwrap(); let first = lock_directory(temp.path()).unwrap();
         assert!(lock_directory(temp.path()).is_err()); drop(first);
         assert!(lock_directory(temp.path()).is_ok());
+    }
+    #[test]
+    fn last_folder_is_separate_from_dynasty_files_and_survives_restart() {
+        let temp = tempfile::tempdir().unwrap(); let data = temp.path().join("app-data");
+        let storage = Storage::new(&data).unwrap();
+        assert!(storage.last_folder().unwrap().is_none());
+        let first = temp.path().join("Воробьёвы"); let second = temp.path().join("Другие");
+        fs::create_dir(&first).unwrap(); fs::create_dir(&second).unwrap();
+        let first = storage.allow(&first).unwrap(); let second = storage.allow(&second).unwrap();
+        storage.remember(&first.path, "Воробьёвы".into()).unwrap();
+        storage.remember(&second.path, "Другие".into()).unwrap();
+        storage.remember(&first.path, "Воробьёвы".into()).unwrap();
+        let reopened = Storage::new(&data).unwrap();
+        assert_eq!(reopened.last_folder().unwrap().unwrap().directory.path, first.path);
+        assert_eq!(fs::read_dir(&first.path).unwrap().count(), 0);
+        reopened.clear_last_folder().unwrap();
+        assert!(Storage::new(&data).unwrap().last_folder().unwrap().is_none());
+        assert_eq!(reopened.recent().unwrap().len(), 2);
+    }
+    #[test]
+    fn deleting_a_dynasty_removes_nested_files_and_folder_but_preserves_siblings() {
+        let temp = tempfile::tempdir().unwrap(); let data = temp.path().join("app-data");
+        let storage = Storage::new(&data).unwrap(); let root = storage.allow(temp.path()).unwrap();
+        let folder = temp.path().join("Воробьёвы"); fs::create_dir(&folder).unwrap();
+        fs::create_dir(folder.join("photos")).unwrap(); fs::write(folder.join("photos/image.png"), b"Photo").unwrap();
+        fs::write(temp.path().join("keep.txt"), "Keep").unwrap();
+        let text = document("Воробьёвы"); fs::write(folder.join(FILE_NAME), &text).unwrap();
+        let directory = storage.allow(&folder).unwrap(); storage.remember(&directory.path, "Воробьёвы".into()).unwrap();
+        storage.execute(Request::DeleteDynasty { directory: directory.path.clone(), expected: hash(&text) }).unwrap();
+        assert!(!folder.exists()); assert_eq!(fs::read_to_string(temp.path().join("keep.txt")).unwrap(), "Keep");
+        assert!(Path::new(&root.path).exists()); assert!(data.exists());
+        storage.forget(&directory.path).unwrap();
+        assert!(storage.recent().unwrap().is_empty()); assert!(storage.last_folder().unwrap().is_none());
+    }
+    #[test]
+    fn recursive_deletion_rejects_conflicts_locked_folders_and_settings_ancestors() {
+        let temp = tempfile::tempdir().unwrap(); let storage = Storage::new(&temp.path().join("app-data")).unwrap();
+        let root = storage.allow(temp.path()).unwrap(); let text = document("Keep");
+        fs::write(temp.path().join(FILE_NAME), &text).unwrap();
+        assert!(storage.execute(Request::DeleteDynasty { directory: root.path, expected: hash(&text) }).is_err());
+        let folder = temp.path().join("dynasty"); fs::create_dir(&folder).unwrap(); fs::write(folder.join(FILE_NAME), &text).unwrap();
+        let directory = storage.allow(&folder).unwrap();
+        assert!(storage.execute(Request::DeleteDynasty { directory: directory.path.clone(), expected: hash("stale") }).is_err());
+        let lock = lock_directory(&folder).unwrap();
+        assert!(storage.execute(Request::DeleteDynasty { directory: directory.path, expected: hash(&text) }).is_err());
+        drop(lock); assert_eq!(fs::read_to_string(folder.join(FILE_NAME)).unwrap(), text);
     }
 }

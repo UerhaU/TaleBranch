@@ -121,12 +121,39 @@ describe("dynasties in user folders", () => {
     expect((await DynastyFolder.open(directory)).project.name).toBe("Первая вкладка");
     expect(new Set(requested)).toEqual(new Set([`talebranch:dynasty:${project.id}`]));
   });
-  it("deletes only its managed file and cannot resurrect a deleted dynasty", async () => {
+  it("deletes the dynasty folder with its contents and cannot resurrect it", async () => {
     const directory = new MemoryDirectory(); const project = createDemoProject();
     const folder = await DynastyFolder.create(directory, project); directory.files.set("notes.txt", "Мои заметки");
     await folder.delete();
-    expect([...directory.files.entries()]).toEqual([["notes.txt", "Мои заметки"]]);
+    expect(directory.deleted).toBe(true); expect(directory.files.size).toBe(0);
     await expect(folder.save(project)).rejects.toThrow("FOLDER_DELETED");
+  });
+  it("removes a created child folder recursively while preserving its parent and siblings", async () => {
+    const parent = new MemoryDirectory(); parent.files.set("keep.txt", "Keep");
+    const sibling = await parent.getDirectoryHandle("Соседи", { create: true }); sibling.files.set("keep.txt", "Keep");
+    const folder = await DynastyFolder.createInLocation(parent, createDemoProject());
+    const nested = await folder.directory.getDirectoryHandle("Фотографии", { create: true });
+    (nested as MemoryDirectory).files.set("photo.png", "Photo");
+    await folder.delete();
+    expect([...parent.directories.keys()]).toEqual(["Соседи"]);
+    expect(parent.files.get("keep.txt")).toBe("Keep"); expect(sibling.files.get("keep.txt")).toBe("Keep");
+  });
+  it("does not delete only the JSON when the browser cannot remove the directory", async () => {
+    const directory = new MemoryDirectory(); const project = createDemoProject();
+    const folder = await DynastyFolder.create(directory, project);
+    Object.defineProperty(directory, "remove", { value: undefined });
+    await expect(folder.delete()).rejects.toThrow("FOLDER_DELETE_UNSUPPORTED");
+    expect(directory.files.has(DYNASTY_FILE)).toBe(true);
+  });
+  it("does not delete a replacement directory if the original folder was moved", async () => {
+    const parent = new MemoryDirectory(); const project = createDemoProject();
+    const folder = await DynastyFolder.createInLocation(parent, project);
+    const original = folder.directory as MemoryDirectory;
+    const replacement = new MemoryDirectory(); replacement.files.set("keep.txt", "Keep");
+    parent.directories.set(original.name, replacement);
+    await expect(folder.delete()).rejects.toThrow("FOLDER_CONFLICT");
+    expect(original.files.has(DYNASTY_FILE)).toBe(true);
+    expect(replacement.files.get("keep.txt")).toBe("Keep");
   });
   it("rejects corrupt data and denied permissions without writing", async () => {
     const directory = new MemoryDirectory(); directory.files.set(DYNASTY_FILE, "{}");

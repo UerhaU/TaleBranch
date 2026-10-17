@@ -7,17 +7,18 @@ import { moveCharacterToTrash, normalizePairLink, permanentlyDeleteTrashedCharac
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { recordStorageFailure, type StorageFailure } from "../lib/storageDiagnostics";
-import { DynastyFolder, FOLDER_ACTIVE_KEY, forgetDynastyFolder, rememberDynastyFolder } from "../lib/folderStorage";
+import { clearLastDynastyFolder, DynastyFolder, FOLDER_ACTIVE_KEY, forgetDynastyFolder, lastDynastyFolder, rememberDynastyFolder } from "../lib/folderStorage";
 
 export type SaveStatus = "saved" | "saving" | "error";
 
 export function useProject() {
   const [initial] = useState(() => {
     try {
-      const project = localStorage.getItem(FOLDER_ACTIVE_KEY) ? null : loadInitialProject();
-      return { project: project ?? createEmptyProject(), hasProject: project !== null, loadError: false };
+      const restore = isTauri() || Boolean(localStorage.getItem(FOLDER_ACTIVE_KEY));
+      const project = restore ? null : loadInitialProject();
+      return { project: project ?? createEmptyProject(), hasProject: project !== null, loadError: false, restore };
     }
-    catch { return { project: createEmptyProject(), hasProject: true, loadError: true }; }
+    catch { return { project: createEmptyProject(), hasProject: true, loadError: true, restore: false }; }
   });
   const [hasProject, setHasProject] = useState(initial.hasProject);
   const [loadError, setLoadError] = useState(initial.loadError);
@@ -28,7 +29,8 @@ export function useProject() {
   const saveTimer = useRef<number | undefined>(undefined);
   const folderRef = useRef<DynastyFolder | undefined>(undefined);
   const [folderName, setFolderName] = useState<string>();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(initial.restore);
+  const [startupError, setStartupError] = useState(false);
   const transitioning = useRef(false);
   const destructive = useRef(false);
 
@@ -160,6 +162,7 @@ export function useProject() {
       lastSaved.current = next;
       folderRef.current = undefined; setFolderName(undefined);
       try { localStorage.removeItem(FOLDER_ACTIVE_KEY); } catch { /* Preferences are optional. */ }
+      void clearLastDynastyFolder(true).catch(() => {});
       current.current = next;
       active.current = true;
       setHasProject(true);
@@ -195,16 +198,41 @@ export function useProject() {
     } finally { transitioning.current = false; setBusy(false); }
   }, [forceSave]);
 
+  useEffect(() => {
+    if (!initial.restore) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const entry = await lastDynastyFolder();
+        if (!entry || cancelled) return;
+        // Startup must never open a permission dialog. Native folders are
+        // authorized by their saved path; browsers may require an explicit click.
+        if (await entry.directory.queryPermission({ mode: "readwrite" }) !== "granted" || cancelled) return;
+        const { folder, project: saved } = await DynastyFolder.open(entry.directory, entry.parent);
+        if (!cancelled) await openFolder(folder, saved);
+      } catch {
+        if (!cancelled) setStartupError(true);
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initial.restore, openFolder]);
+
   const closeFolder = useCallback(async (): Promise<boolean> => {
     if (transitioning.current) return false;
     transitioning.current = true; setBusy(true);
     try {
       if (!await forceSave()) return false;
+      await clearLastDynastyFolder();
       folderRef.current = undefined; setFolderName(undefined);
       active.current = false; setHasProject(false); lastSaved.current = undefined;
       current.current = createEmptyProject();
       setHistory({ past: [], present: current.current, future: [] });
       return true;
+    } catch (error) {
+      setSaveError(recordStorageFailure(error, "switch")); setSaveStatus("error");
+      return false;
     } finally { transitioning.current = false; setBusy(false); }
   }, [forceSave]);
 
@@ -251,6 +279,7 @@ export function useProject() {
       return folderRef.current.delete().then(async () => {
         folderRef.current = undefined; setFolderName(undefined);
         acceptIrreversibleChange();
+        await clearLastDynastyFolder().catch(() => {});
         await forgetDynastyFolder(directory).catch(() => {});
         return true;
       }).catch(error => { setSaveError(recordStorageFailure(error, "delete")); setSaveStatus("error"); return false; })
@@ -399,6 +428,7 @@ export function useProject() {
     hasProject,
     folderName,
     busy,
+    startupError,
     openFolder,
     closeFolder,
     loadError,
@@ -424,7 +454,7 @@ export function useProject() {
     removeRelationship,
     updatePosition,
   }), [
-    project, hasProject, folderName, busy, openFolder, closeFolder, loadError, closeGuardError, saveStatus, saveError, history.past.length, history.future.length, commit, replace, undo, redo,
+    project, hasProject, folderName, busy, startupError, openFolder, closeFolder, loadError, closeGuardError, saveStatus, saveError, history.past.length, history.future.length, commit, replace, undo, redo,
     forceSave, updateCharacter, addCharacter, deleteCharacter, restoreCharacter, permanentlyDeleteCharacters, deleteProject, addParentLink,
     addPairLink, removeLink, removeRelationship, updatePosition,
   ]);

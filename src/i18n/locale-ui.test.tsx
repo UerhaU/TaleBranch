@@ -58,6 +58,16 @@ describe("localized profile forms", () => {
     expect(save.mock.calls[0][0]).toMatchObject({ displayName: before.displayName, biography: before.biography, gender: before.gender, stages: before.stages, lifeStage: before.lifeStage });
     expect(character).toEqual(before);
   });
+  it.each(["ru", "en", "de", "fr", "es", "pt-BR", "zh-CN", "sr", "koi"] as const)("shows distinct young and adult ages in the %s form", locale => {
+    localStorage.setItem("dynasty-chronicles:language", locale);
+    const character = createCharacter("Age check");
+    act(() => root.render(<LanguageProvider><CharacterDialog character={character} onClose={vi.fn()} onSave={vi.fn()} /></LanguageProvider>));
+    const age = container.querySelector<HTMLSelectElement>(".age-select select")!;
+    const options = Array.from(age.options);
+    expect(options.find(item => item.value === "Молодой")?.text).toBe(translateMessage(locale, "stageYoungAdult"));
+    expect(options.find(item => item.value === "Взрослый")?.text).toBe(translateMessage(locale, "stageAdult"));
+    expect(age.value).toBe("Молодой"); expect(options).toHaveLength(8);
+  });
 
   it("displays localized built-in family roles while saving canonical values", () => {
     localStorage.setItem("dynasty-chronicles:language", "fr");

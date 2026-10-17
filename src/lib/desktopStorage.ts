@@ -29,6 +29,7 @@ export class DesktopDirectory implements DynastyDirectory {
     yield* await this.io<Array<{ name: string }>>("list");
   }
   async removeEntry(name: string) { await this.io("remove", { name }); }
+  async deleteDynasty(expected: string) { await this.io("deleteDynasty", { expected }); }
   async queryPermission(): Promise<PermissionState> { return "granted"; }
   async requestPermission(): Promise<PermissionState> { return "granted"; }
   async isSameEntry(other: DynastyDirectory) { return other instanceof DesktopDirectory && this.displayPath === other.displayPath; }
@@ -65,6 +66,13 @@ export async function pickDesktopDirectory(): Promise<DesktopDirectory> {
 export async function recentDesktopFolders(): Promise<RecentFolder[]> {
   const recent = await native<Array<{ id: string; name: string; directory: DirectoryInfo }>>("desktop_recent_folders");
   return recent.map(item => ({ ...item, directory: new DesktopDirectory(item.directory) }));
+}
+export async function lastDesktopFolder(): Promise<RecentFolder | undefined> {
+  const entry = await native<{ id: string; name: string; directory: DirectoryInfo } | null>("desktop_last_folder");
+  return entry ? { ...entry, directory: new DesktopDirectory(entry.directory) } : undefined;
+}
+export async function clearLastDesktopFolder(): Promise<void> {
+  await native("desktop_clear_last_folder");
 }
 export async function rememberDesktopFolder(directory: DynastyDirectory, name: string): Promise<void> {
   if (!(directory instanceof DesktopDirectory)) throw new Error("INVALID_DESKTOP_DIRECTORY");

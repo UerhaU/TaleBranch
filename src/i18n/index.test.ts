@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { getMissingTranslationKeys, getTranslationKeys, supportedLocales, translateMessage, translateSystemValue } from "./index";
-import koiPending from "./locales/koi-pending.json";
 
 describe("translation dictionaries", () => {
-  it.each(supportedLocales.filter(locale => locale.code !== "koi"))("contains every base and new system string for $label", ({ code }) => {
+  it.each(supportedLocales)("contains every base and new system string for $label", ({ code }) => {
     expect(getMissingTranslationKeys(code)).toEqual([]);
   });
-  it("records the exact remaining Komi-Permyak gaps instead of hiding them behind English", () => {
-    expect(getMissingTranslationKeys("koi").sort()).toEqual(koiPending);
-    expect(translateMessage("koi", "retrySave")).toBe(translateMessage("ru", "retrySave"));
+  it("uses Komi-Permyak translations for the welcome screen, support and file operations", () => {
+    for (const key of ["noDynastyTitle", "noDynastyHint", "folderHint", "supportPage", "supportPageText", "retrySave", "deleteFolderDynastyHint", "profilePhoto"]) {
+      expect(translateMessage("koi", key)).not.toBe(translateMessage("ru", key));
+    }
     expect(translateMessage("koi", "save")).toBe("Видзны");
   });
   it.each(supportedLocales)("preserves interpolation variables in $label", ({ code }) => {
@@ -35,5 +35,18 @@ describe("translation dictionaries", () => {
     expect(translateSystemValue("zh-CN", "Жеребёнок")).toBe("幼马");
     expect(translateSystemValue("es", "Барсик из дома Вороновых")).toBe("Барсик из дома Вороновых");
     expect(translateMessage("fr", "profilePhotoStage", { stage: "Chaton" })).toContain("Chaton");
+  });
+  it.each([
+    ["ru", "Молодой"], ["en", "Young"], ["de", "Jung"], ["fr", "Jeune"],
+    ["es", "Joven"], ["pt-BR", "Jovem"], ["zh-CN", "青年"], ["sr", "Млад"], ["koi", "Том"],
+  ] as const)("shows the separate young age in %s, including old saved names", (locale, label) => {
+    expect(translateSystemValue(locale, "Молодой")).toBe(label);
+    expect(translateSystemValue(locale, "Молодой взрослый")).toBe(label);
+    expect(translateSystemValue(locale, "Взрослый")).not.toBe(label);
+  });
+  it("keeps Komi letters with diaeresis precomposed in the story placeholder", () => {
+    const text = translateMessage("koi", "storyEmpty");
+    expect(text).toContain("ӧ"); expect(text).toBe(text.normalize("NFC"));
+    expect(text).not.toContain("\u0308");
   });
 });

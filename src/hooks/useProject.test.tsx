@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useProject } from "./useProject";
@@ -8,12 +8,13 @@ import { listProjects, loadProject, saveProject } from "../lib/storage";
 import { webcrypto } from "node:crypto";
 import { DynastyFolder, DYNASTY_FILE, FOLDER_ACTIVE_KEY } from "../lib/folderStorage";
 import { MemoryDirectory } from "../lib/folderStorage.testSupport";
+import * as folderStorage from "../lib/folderStorage";
 
 const desktop = vi.hoisted(() => ({
   active: false, close: undefined as ((event: { preventDefault: () => void }) => void) | undefined,
-  stop: vi.fn(), register: vi.fn(),
+  stop: vi.fn(), register: vi.fn(), invoke: vi.fn(),
 }));
-vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => desktop.active }));
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => desktop.active, invoke: desktop.invoke }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested: desktop.register }) }));
 
 let app: ReturnType<typeof useProject>;
@@ -23,6 +24,7 @@ function Harness() { app = useProject(); return null; }
 beforeEach(() => {
   vi.useFakeTimers();
   desktop.active = false; desktop.close = undefined; desktop.stop.mockReset();
+  desktop.invoke.mockReset().mockResolvedValue(null);
   desktop.register.mockReset().mockImplementation((handler) => { desktop.close = handler; return Promise.resolve(desktop.stop); });
   localStorage.clear();
   saveProject(createDemoProject());
@@ -87,7 +89,7 @@ describe("autosave directly in a selected folder", () => {
   it("does not resume an old browser copy or create a phantom dynasty after reload", async () => {
     await open();
     expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy();
-    act(() => root.unmount()); root = createRoot(document.createElement("div")); mount();
+    act(() => root.unmount()); root = createRoot(document.createElement("div")); await act(async () => mount());
     expect(app.hasProject).toBe(false);
     act(() => vi.advanceTimersByTime(1000));
     expect(listProjects()).toHaveLength(1); // The pre-existing browser dynasty is untouched.
@@ -123,12 +125,56 @@ describe("autosave directly in a selected folder", () => {
     expect(JSON.stringify((await DynastyFolder.open(directory)).project)).not.toContain("char_vera");
     expect(app.canUndo).toBe(false);
   });
-  it("deletes only the source file and leaves other files and browser dynasties intact", async () => {
-    const { directory } = await open(); directory.files.set("other.txt", "Не трогать");
+  it("deletes the whole source folder without resurrecting it or deleting browser dynasties", async () => {
+    const { directory } = await open(); directory.files.set("other.txt", "Inside dynasty");
     await act(async () => { expect(await app.deleteProject()).toBe(true); });
     act(() => { window.dispatchEvent(new Event("pagehide")); vi.advanceTimersByTime(1000); });
-    expect([...directory.files.entries()]).toEqual([["other.txt", "Не трогать"]]);
+    expect(directory.deleted).toBe(true); expect(directory.files.size).toBe(0);
+    expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBe("closed");
     expect(app.hasProject).toBe(false); expect(listProjects()).toHaveLength(1);
+    act(() => root.unmount()); root = createRoot(document.createElement("div"));
+    await act(async () => mount());
+    expect(app.hasProject).toBe(false); expect(listProjects()).toHaveLength(1);
+  });
+});
+
+describe("restoring the last dynasty on startup", () => {
+  it.each([false, true])("opens the last folder and its latest photos instead of an old browser record (desktop=%s)", async native => {
+    vi.stubGlobal("crypto", webcrypto); desktop.active = native;
+    const directory = new MemoryDirectory(); const saved = createDemoProject();
+    saved.name = "Воробьёвы"; saved.characters[0].notes = "Latest disk change";
+    saved.characters[0].stages[0].photo = { original: "data:image/png;base64,photo", edited: "data:image/png;base64,crop", updatedAt: saved.updatedAt };
+    await DynastyFolder.create(directory, saved);
+    localStorage.setItem(FOLDER_ACTIVE_KEY, saved.id);
+    vi.spyOn(folderStorage, "lastDynastyFolder").mockResolvedValue({ id: "bookmark", name: saved.name, directory });
+    const prompts = vi.spyOn(directory, "requestPermission");
+    const oldRecords = listProjects();
+    await act(async () => { root.render(<StrictMode><Harness /></StrictMode>); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(app.busy).toBe(false); });
+    expect(app.hasProject).toBe(true); expect(app.busy).toBe(false); expect(app.project).toEqual(saved);
+    expect(app.folderName).toBe(directory.name); expect(prompts).not.toHaveBeenCalled();
+    expect(listProjects()).toEqual(oldRecords);
+    act(() => app.commit(draft => { draft.name = "Continue in same folder"; }));
+    await act(async () => { expect(await app.forceSave()).toBe(true); });
+    expect((await DynastyFolder.open(directory)).project.name).toBe("Continue in same folder");
+  });
+  it.each(["missing", "corrupt", "denied"])("leaves the welcome screen without replacing a %s folder with browser data", async kind => {
+    vi.stubGlobal("crypto", webcrypto);
+    localStorage.setItem(FOLDER_ACTIVE_KEY, "saved-folder");
+    const directory = new MemoryDirectory();
+    if (kind === "corrupt") directory.files.set(DYNASTY_FILE, "{}");
+    if (kind === "denied") directory.permission = "prompt";
+    vi.spyOn(folderStorage, "lastDynastyFolder").mockResolvedValue({ id:"bookmark", name:"Last", directory });
+    const prompt = vi.spyOn(directory, "requestPermission");
+    await act(async () => mount());
+    expect(app.hasProject).toBe(false); expect(app.busy).toBe(false);
+    expect(app.startupError).toBe(kind !== "denied"); expect(prompt).not.toHaveBeenCalled();
+    expect(listProjects()).toHaveLength(1);
+  });
+  it("shows the empty state on first desktop launch even if a browser record exists", async () => {
+    desktop.active = true;
+    await act(async () => mount());
+    expect(app.hasProject).toBe(false); expect(app.busy).toBe(false); expect(listProjects()).toHaveLength(1);
   });
 });
 
@@ -248,6 +294,7 @@ describe("autosave across project transitions", () => {
   it("flushes pending edits on native close before allowing the window to be destroyed", async () => {
     desktop.active = true;
     await act(async () => root.render(<Harness />));
+    await act(async () => { expect(await app.replace(createDemoProject())).toBe(true); });
     act(() => app.commit((draft) => { draft.name = "Native close edit"; }));
     const preventDefault = vi.fn();
     act(() => desktop.close!({ preventDefault }));
@@ -258,6 +305,7 @@ describe("autosave across project transitions", () => {
   it("prevents native close if writing failed so the unsaved project stays accessible", async () => {
     desktop.active = true;
     await act(async () => root.render(<Harness />));
+    await act(async () => { expect(await app.replace(createDemoProject())).toBe(true); });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("Quota", "QuotaExceededError"); });
     act(() => app.commit((draft) => { draft.description = "Pending native edit"; }));
     const preventDefault = vi.fn();

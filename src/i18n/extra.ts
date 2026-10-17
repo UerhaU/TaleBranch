@@ -40,7 +40,7 @@ export const extraMessages: Record<string, Record<string, string>> = {
     deleteDynastyHint: "Династия «{name}» будет полностью удалена: все персонажи, питомцы, фотографии, связи и корзина. Другие династии сохранятся. Если это последняя династия, появится предложение создать новую и выбрать её название.",
     deleteFailed: "Не удалось завершить удаление. Данные оставлены в текущем окне. Попробуйте ещё раз.",
     permanentlyDeleted: "Удалено безвозвратно", dynastyDeleted: "Династия удалена",
-    gameCatalogs: "Справочники игры", gameCatalogsHint: "Игровые данные и значки для карточек симов и питомцев. Названия приведены по русской версии игры.",
+    gameCatalogs: "Справочники игры", gameCatalogsHint: "Игровые справочники и значки для карточек. Названия и описания используют локализацию The Sims 4 на выбранном языке, когда она доступна.",
     catalogType: "Справочник", catalogUnknown: "Значение из другого справочника", choose: "Выбрать", chooseFromCatalog: "Выбрать из справочника",
     catalogOutsideRules: "Выбранное значение не входит в текущий фильтр. Оно сохранено; его можно оставить для своей истории.",
     catalogSearch: "Поиск в справочнике", gamePack: "Дополнение или набор", allPacks: "Все дополнения и наборы", catalogCategory: "Категория", allCategories: "Все категории",
@@ -107,7 +107,7 @@ export const extraMessages: Record<string, Record<string, string>> = {
     deleteDynastyHint: "The entire dynasty “{name}” will be deleted, including all characters, pets, photos, connections and trash. Other dynasties will remain. If this is the last dynasty, you will be invited to create and name a new one.",
     deleteFailed: "Could not complete deletion. Data is still available in the current window. Try again.",
     permanentlyDeleted: "Permanently deleted", dynastyDeleted: "Dynasty deleted",
-    gameCatalogs: "Game catalogs", gameCatalogsHint: "Game data and icons for Sim and pet profiles. Catalog names use the Russian game localization.",
+    gameCatalogs: "Game catalogs", gameCatalogsHint: "Game catalogs and icons for character profiles. Names and descriptions use the selected language’s The Sims 4 localization when available.",
     catalogType: "Catalog", catalogUnknown: "Value from another catalog", choose: "Choose", chooseFromCatalog: "Choose from catalog",
     catalogOutsideRules: "This value is outside the current filter. It is preserved and can remain part of your story.",
     catalogSearch: "Search catalog", gamePack: "Game pack", allPacks: "All game packs", catalogCategory: "Category", allCategories: "All categories",
@@ -146,3 +146,11 @@ export const extraMessages: Record<string, Record<string, string>> = {
 };
 
 for (const [locale, messages] of Object.entries(folderMessages)) Object.assign(extraMessages[locale], messages);
+
+const swapParentChildMessages: Record<string, string> = {
+  ru: "Поменять родителя и ребёнка местами", en: "Swap parent and child",
+  de: "Elternteil und Kind tauschen", fr: "Intervertir le parent et l’enfant",
+  es: "Intercambiar progenitor y descendiente", "pt-BR": "Trocar responsável e criança",
+  "zh-CN": "交换父母与子女", sr: "Заменити родитеља и дете", koi: "Вежны ай-мамӧс да кагаӧс местанас",
+};
+for (const [locale, message] of Object.entries(swapParentChildMessages)) extraMessages[locale].swapParentChild = message;

@@ -15,7 +15,7 @@ export const deExtra: Record<string, string> = {
   purgeHistoryHint: "Auch der Verlauf zum Rückgängigmachen und Wiederholen wird gelöscht, damit gelöschte Daten nicht mit Ctrl+Z wiederhergestellt werden können.",
   deleteDynastyTitle: "Dynastie „{name}“ löschen?", deleteDynastyHint: "Die gesamte Dynastie „{name}“ wird mit allen Charakteren, Haustieren, Fotos, Beziehungen und dem Papierkorb gelöscht. Andere Dynastien bleiben erhalten. Ist dies die letzte Dynastie, kannst du anschließend eine neue erstellen und benennen.",
   deleteFailed: "Das Löschen ist fehlgeschlagen. Die Daten sind im aktuellen Fenster weiterhin verfügbar. Versuche es erneut.", permanentlyDeleted: "Endgültig gelöscht", dynastyDeleted: "Dynastie gelöscht",
-  gameCatalogs: "Spielkataloge", gameCatalogsHint: "Spieldaten und Symbole für Sims und Haustiere. Die Katalognamen stammen aus der russischen Spielversion.",
+  gameCatalogs: "Spielkataloge", gameCatalogsHint: "Spielkataloge und Symbole für Profile. Namen und Beschreibungen stammen, sofern verfügbar, aus der Die Sims 4-Lokalisierung der gewählten Sprache.",
   catalogType: "Katalog", catalogUnknown: "Wert aus einem anderen Katalog", choose: "Auswählen", chooseFromCatalog: "Aus dem Katalog auswählen",
   catalogOutsideRules: "Dieser Wert liegt außerhalb des aktuellen Filters. Er bleibt erhalten und kann Teil deiner Geschichte bleiben.",
   catalogSearch: "Katalog durchsuchen", gamePack: "Spielpaket", allPacks: "Alle Spielpakete", catalogCategory: "Kategorie", allCategories: "Alle Kategorien",

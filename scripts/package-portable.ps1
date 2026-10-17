@@ -19,9 +19,9 @@ if (-not $AllowMissingIcons -and $report.embeddedGameIcons -lt 1000) { throw "Th
 Copy-Item -LiteralPath (Join-Path $projectRoot "docs\PORTABLE_RU.md") -Destination (Join-Path $portableRoot "README_RU.md") -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot "LICENSE") -Destination (Join-Path $portableRoot "LICENSE.txt") -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md") -Destination (Join-Path $portableRoot "THIRD_PARTY_NOTICES.md") -Force
-Copy-Item -LiteralPath (Join-Path $projectRoot "docs\BETA_RELEASE_RU.md") -Destination (Join-Path $portableRoot "BETA_CHECKLIST_RU.md") -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "CHANGELOG.md") -Destination (Join-Path $portableRoot "CHANGELOG.md") -Force
 $archive = Join-Path $portableRoot "TaleBranch-$appVersion-portable.zip"
-Compress-Archive -LiteralPath $destination,(Join-Path $portableRoot "README_RU.md"),(Join-Path $portableRoot "LICENSE.txt"),(Join-Path $portableRoot "THIRD_PARTY_NOTICES.md"),(Join-Path $portableRoot "BETA_CHECKLIST_RU.md") -DestinationPath $archive -Force
+Compress-Archive -LiteralPath $destination,(Join-Path $portableRoot "README_RU.md"),(Join-Path $portableRoot "LICENSE.txt"),(Join-Path $portableRoot "THIRD_PARTY_NOTICES.md"),(Join-Path $portableRoot "CHANGELOG.md") -DestinationPath $archive -Force
 $checksums = @($destination, $archive) | ForEach-Object {
     $inputStream = [IO.File]::OpenRead($_)
     $hasher = [Security.Cryptography.SHA256]::Create()

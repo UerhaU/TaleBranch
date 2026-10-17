@@ -9,7 +9,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "Не удалось записать изменения в папку династии. Не закрывайте окно. Проверьте доступ к папке и свободное место, затем повторите сохранение или экспортируйте текущую версию.",
     browserDynasties: "Ранее сохранённые в браузере", browserStorage: "Хранилище браузера",
     importFolderHint: "Выберите место сохранения. Приложение создаст в нём отдельную папку с названием импортированной династии и будет сохранять изменения туда.",
-    deleteFolderDynastyHint: "Будет безвозвратно удалён файл dynasty.json из папки «{folder}», включая всех персонажей, фотографии, связи и корзину. Сама папка и другие файлы останутся.",
+    deleteFolderDynastyHint: "Будет безвозвратно удалена папка династии «{folder}» целиком, включая всех персонажей, фотографии, связи, корзину и любые другие файлы внутри. Это действие нельзя отменить. Соседние папки и файлы останутся.",
     noDynastyHint: "Создайте династию в выбранной папке или откройте папку существующей. Для старого экспортного файла доступен импорт.",
   },
   en: {
@@ -22,7 +22,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "Could not save to the dynasty folder. Keep this window open. Check folder access and free space, then retry or export your current version.",
     browserDynasties: "Previously saved in this browser", browserStorage: "Browser storage",
     importFolderHint: "Choose a save location. The app will create a separate folder named after the imported dynasty and save future changes there.",
-    deleteFolderDynastyHint: "The dynasty.json file in “{folder}” will be permanently deleted, including all characters, photos, connections and trash. The folder itself and other files will remain.",
+    deleteFolderDynastyHint: "The entire dynasty folder “{folder}” will be permanently deleted, including all characters, photos, connections, trash and any other files inside. This cannot be undone. Neighboring folders and files will remain.",
     noDynastyHint: "Create a dynasty in a folder of your choice, or open an existing dynasty folder. Older exported files can be imported.",
   },
   de: {
@@ -35,7 +35,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "Speichern im Dynastieordner fehlgeschlagen. Lass das Fenster offen. Prüfe Zugriffsrechte und freien Speicher und versuche es erneut oder exportiere den aktuellen Stand.",
     browserDynasties: "Bisher im Browser gespeichert", browserStorage: "Browserspeicher",
     importFolderHint: "Wähle einen Speicherort. Die App erstellt dort einen eigenen Ordner mit dem Namen der importierten Dynastie und speichert Änderungen darin.",
-    deleteFolderDynastyHint: "Die Datei dynasty.json in „{folder}“ mit allen Figuren, Fotos, Verbindungen und dem Papierkorb wird endgültig gelöscht. Der Ordner selbst und andere Dateien bleiben erhalten.",
+    deleteFolderDynastyHint: "Der gesamte Dynastieordner „{folder}“ wird endgültig gelöscht, einschließlich aller Figuren, Fotos, Verbindungen, des Papierkorbs und aller anderen Dateien darin. Dies kann nicht rückgängig gemacht werden. Benachbarte Ordner und Dateien bleiben erhalten.",
     noDynastyHint: "Erstelle eine Dynastie in einem gewählten Ordner oder öffne einen bestehenden Dynastieordner. Ältere Exportdateien können importiert werden.",
   },
   fr: {
@@ -48,7 +48,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "Impossible d’enregistrer dans le dossier. Gardez cette fenêtre ouverte. Vérifiez l’accès et l’espace libre, puis réessayez ou exportez la version actuelle.",
     browserDynasties: "Enregistrées auparavant dans le navigateur", browserStorage: "Stockage du navigateur",
     importFolderHint: "Choisissez un emplacement. L’application y créera un dossier séparé portant le nom de la dynastie importée et y enregistrera les modifications.",
-    deleteFolderDynastyHint: "Le fichier dynasty.json dans « {folder} », avec tous les personnages, photos, liens et la corbeille, sera supprimé définitivement. Le dossier et les autres fichiers seront conservés.",
+    deleteFolderDynastyHint: "Le dossier de la dynastie « {folder} » sera supprimé définitivement avec tous les personnages, photos, liens, la corbeille et les autres fichiers qu’il contient. Cette action est irréversible. Les dossiers et fichiers voisins seront conservés.",
     noDynastyHint: "Créez une dynastie dans le dossier de votre choix ou ouvrez un dossier existant. Les anciens fichiers exportés peuvent être importés.",
   },
   es: {
@@ -61,7 +61,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "No se pudo guardar en la carpeta. Mantén esta ventana abierta. Comprueba el acceso y el espacio libre, y vuelve a intentarlo o exporta la versión actual.",
     browserDynasties: "Guardadas anteriormente en el navegador", browserStorage: "Almacenamiento del navegador",
     importFolderHint: "Elige una ubicación. La aplicación creará una carpeta separada con el nombre de la dinastía importada y guardará los cambios allí.",
-    deleteFolderDynastyHint: "Se eliminará permanentemente dynasty.json de «{folder}», incluidos personajes, fotos, vínculos y papelera. La carpeta y los demás archivos se conservarán.",
+    deleteFolderDynastyHint: "Se eliminará permanentemente toda la carpeta de la dinastía «{folder}», incluidos personajes, fotos, vínculos, papelera y cualquier otro archivo dentro. Esta acción no se puede deshacer. Las carpetas y archivos vecinos se conservarán.",
     noDynastyHint: "Crea una dinastía en la carpeta que elijas o abre una carpeta existente. También puedes importar archivos exportados anteriormente.",
   },
   "pt-BR": {
@@ -74,7 +74,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "Não foi possível salvar na pasta. Mantenha esta janela aberta. Verifique o acesso e o espaço livre, depois tente novamente ou exporte a versão atual.",
     browserDynasties: "Salvas anteriormente no navegador", browserStorage: "Armazenamento do navegador",
     importFolderHint: "Escolha um local. O aplicativo criará uma pasta separada com o nome da dinastia importada e salvará as alterações ali.",
-    deleteFolderDynastyHint: "O arquivo dynasty.json em “{folder}” será excluído permanentemente, incluindo personagens, fotos, vínculos e lixeira. A pasta e os demais arquivos serão mantidos.",
+    deleteFolderDynastyHint: "A pasta inteira da dinastia “{folder}” será excluída permanentemente, incluindo personagens, fotos, vínculos, lixeira e quaisquer outros arquivos dentro dela. Esta ação não pode ser desfeita. Pastas e arquivos vizinhos serão mantidos.",
     noDynastyHint: "Crie uma dinastia em uma pasta escolhida ou abra uma pasta existente. Arquivos exportados anteriormente podem ser importados.",
   },
   "zh-CN": {
@@ -87,7 +87,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "无法保存到家族文件夹。请保持窗口打开，检查文件夹权限和可用空间，然后重试或导出当前版本。",
     browserDynasties: "此前保存在浏览器中的家族", browserStorage: "浏览器存储",
     importFolderHint: "请选择保存位置。应用将在其中创建以导入家族命名的独立文件夹，并将之后的更改保存在其中。",
-    deleteFolderDynastyHint: "将永久删除“{folder}”中的 dynasty.json 文件，包括所有角色、照片、关系和回收站内容。文件夹本身及其他文件将保留。",
+    deleteFolderDynastyHint: "将永久删除整个家族文件夹“{folder}”，包括所有角色、照片、关系、回收站及其中的其他文件。此操作无法撤销。相邻文件夹和文件将保留。",
     noDynastyHint: "在所选文件夹中创建家族，或打开现有家族文件夹。也可导入之前导出的文件。",
   },
   sr: {
@@ -100,7 +100,7 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "Чување у фасцикли није успело. Не затварај прозор. Провери приступ и слободан простор, па покушај поново или извези тренутну верзију.",
     browserDynasties: "Раније сачуване у прегледачу", browserStorage: "Складиште прегледача",
     importFolderHint: "Изабери место чувања. Апликација ће у њему направити посебну фасциклу са именом увезене династије и чувати измене у њој.",
-    deleteFolderDynastyHint: "Датотека dynasty.json у фасцикли „{folder}“, са свим ликовима, фотографијама, везама и корпом, биће трајно обрисана. Сама фасцикла и друге датотеке остају.",
+    deleteFolderDynastyHint: "Цела фасцикла династије „{folder}“ биће трајно обрисана, укључујући све ликове, фотографије, везе, корпу и све друге датотеке у њој. Ово се не може опозвати. Суседне фасцикле и датотеке остају.",
     noDynastyHint: "Креирај династију у изабраној фасцикли или отвори постојећу фасциклу династије. Старије извезене датотеке могу да се увезу.",
   },
 };

@@ -28,6 +28,10 @@ async fn desktop_io(request: Request, storage: tauri::State<'_, Arc<Storage>>) -
 #[tauri::command]
 fn desktop_recent_folders(storage: tauri::State<'_, Arc<Storage>>) -> desktop_storage::Result<Vec<Recent>> { storage.recent() }
 #[tauri::command]
+fn desktop_last_folder(storage: tauri::State<'_, Arc<Storage>>) -> desktop_storage::Result<Option<Recent>> { storage.last_folder() }
+#[tauri::command]
+fn desktop_clear_last_folder(storage: tauri::State<'_, Arc<Storage>>) -> desktop_storage::Result<()> { storage.clear_last_folder() }
+#[tauri::command]
 fn desktop_remember_folder(directory: String, name: String, storage: tauri::State<'_, Arc<Storage>>) -> desktop_storage::Result<()> { storage.remember(&directory, name) }
 #[tauri::command]
 fn desktop_forget_folder(directory: String, storage: tauri::State<'_, Arc<Storage>>) -> desktop_storage::Result<()> { storage.forget(&directory) }
@@ -64,13 +68,19 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     if saved["text"] != text { return Err("File round trip failed".into()); }
     storage.remember(&directory, "Проверка".into()).map_err(|error| error.message)?;
     if storage.recent().map_err(|error| error.message)?.len() != 1 { return Err("Recent folders failed".into()); }
-    storage.execute(Request::Remove { directory, name:"dynasty.json".into() }).map_err(|error| error.message)?;
+    let reopened = Storage::new(&temporary.path().join("settings"))?;
+    let last = reopened.last_folder().map_err(|error| error.message)?.ok_or("Last folder was not restored")?;
+    if last.directory.path != directory { return Err("Wrong last folder restored".into()); }
+    reopened.execute(Request::DeleteDynasty { directory:directory.clone(), expected:saved["revision"].as_str().unwrap().into() }).map_err(|error| error.message)?;
+    if std::path::Path::new(&directory).exists() { return Err("Dynasty folder was not deleted".into()); }
+    reopened.forget(&directory).map_err(|error| error.message)?;
+    if reopened.last_folder().map_err(|error| error.message)?.is_some() { return Err("Deleted dynasty is still active".into()); }
     let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
     if context.assets().get(&"index.html".into()).is_none() { return Err("Embedded interface is missing".into()); }
     let asset_count = context.assets().iter().count();
     let icon_count = context.assets().iter().filter(|(name, _)| name.starts_with("/game-icons/")).count();
     if asset_count < 3 { return Err("Embedded interface resources are missing".into()); }
-    let report = serde_json::json!({ "result":"passed", "version":env!("CARGO_PKG_VERSION"), "embeddedAssets":asset_count, "embeddedGameIcons":icon_count, "nativeFileRoundTrip":true, "serverRequired":false });
+    let report = serde_json::json!({ "result":"passed", "version":env!("CARGO_PKG_VERSION"), "embeddedAssets":asset_count, "embeddedGameIcons":icon_count, "nativeFileRoundTrip":true, "nativeLastFolderRestore":true, "nativeDynastyFolderDelete":true, "serverRequired":false });
     desktop_storage::atomic_write(&data.join("self-test-result.json"), serde_json::to_string_pretty(&report)?.as_bytes())?;
     Ok(())
 }
@@ -89,7 +99,7 @@ pub fn run() {
                 .build()?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![app_version, desktop_pick_directory, desktop_io, desktop_recent_folders, desktop_remember_folder, desktop_forget_folder, desktop_save_export])
+        .invoke_handler(tauri::generate_handler![app_version, desktop_pick_directory, desktop_io, desktop_recent_folders, desktop_last_folder, desktop_clear_last_folder, desktop_remember_folder, desktop_forget_folder, desktop_save_export])
         .run(tauri::generate_context!())
         .expect("failed to run TaleBranch");
 }

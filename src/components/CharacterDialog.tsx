@@ -10,6 +10,7 @@ import { CharacterPhotoInput } from "./CharacterPhotoInput";
 import { Modal } from "./Modal";
 import { CatalogPicker, GameIcon } from "./CatalogPicker";
 import { useI18n } from "../i18n";
+import { localizedCatalogEntry } from "../lib/catalogLocalization";
 
 const colors = ["#3E4B8E", "#3D1534", "#6D78B2", "#6F4B68", "#8AA6B6", "#C69D63"];
 function ListInput({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
@@ -20,7 +21,11 @@ function ListInput({ value, onChange }: { value: string[]; onChange: (value: str
 export function CharacterDialog({ character, ownerCandidates = [], onClose, onSave }: {
   character?: Character; ownerCandidates?: Character[]; onClose: () => void; onSave: (character: Character) => void;
 }) {
-  const { t, valueLabel } = useI18n();
+  const { t, valueLabel, locale } = useI18n();
+  const displayEntry = (kind: Parameters<typeof catalogEntry>[0], id: string) => {
+    const entry = catalogEntry(kind, id);
+    return entry && localizedCatalogEntry(kind, entry, locale);
+  };
   const [draft, setDraft] = useState(() => prepareCatalogDraft(character ?? createCharacter("", "sim")));
   const [tab, setTab] = useState("main"), [allAges, setAllAges] = useState(false);
   const ownerHintId = useId();
@@ -42,7 +47,7 @@ export function CharacterDialog({ character, ownerCandidates = [], onClose, onSa
       gender: draft.type === "pet" && selectedGender === "other" ? "" : draft.gender,
       catalog: { ...settings, careers: settings.careers.filter(period => period.careerId || period.customName.trim()) }, updatedAt: new Date().toISOString() });
   };
-  const conflicts = traitConflicts(settings.traitIds);
+  const conflicts = traitConflicts(settings.traitIds).map(pair => pair.map(entry => localizedCatalogEntry("traits", entry, locale)));
   const tabs = [["main", "main"], ["traits", "characteristics"], ["skills", "skillsAndPreferences"], ...(draft.type === "pet" ? [] : [["career", "career"]]), ["story", "story"]];
   const customLists = (field: "traits" | "skills" | "preferences") => ({ customValues: draft[field], onCustomValuesChange: (values: string[]) => setDraft(current => ({ ...current, [field]: values })) });
   return <Modal title={character ? t("editCharacter") : t("newCharacter")} subtitle={character ? t("editCharacterHint") : t("newCharacterHint")} onClose={onClose} wide>
@@ -82,10 +87,10 @@ export function CharacterDialog({ character, ownerCandidates = [], onClose, onSa
       {tab === "skills" && <div className="catalog-form-stack">
         <label className="check-row"><input type="checkbox" checked={allAges} onChange={event => setAllAges(event.target.checked)} />{t("showAllAges")}</label>
         <CatalogPicker label={t("skills")} kind="skills" options={options("skills")} selected={settings.skills.map(item => item.id)} multiple onChange={ids => setCatalog({ skills: ids.map(id => settings.skills.find(item => item.id === id) ?? { id, level: 1 }) })} {...customLists("skills")} />
-        {!!settings.skills.length && <div className="catalog-value-list">{settings.skills.map(skill => { const entry = catalogEntry("skills", skill.id); return <label className="catalog-value-row" key={skill.id}><GameIcon entry={entry} /><span>{entry?.label ?? t("catalogUnknown")}<small>{t("levelLimit", { max: entry?.maxLevel ?? "—" })}</small></span><input aria-label={`${t("level")} ${entry?.label ?? t("catalogUnknown")}`} type="number" min="0" max={entry?.maxLevel} step="1" value={skill.level} onChange={event => setCatalog({ skills: settings.skills.map(item => item.id === skill.id ? { ...item, level: Math.max(0, Math.min(entry?.maxLevel ?? Infinity, Number(event.target.value))) } : item) })} /></label>; })}</div>}
+        {!!settings.skills.length && <div className="catalog-value-list">{settings.skills.map(skill => { const entry = displayEntry("skills", skill.id); return <label className="catalog-value-row" key={skill.id}><GameIcon entry={entry} /><span>{entry?.label ?? t("catalogUnknown")}<small>{t("levelLimit", { max: entry?.maxLevel ?? "—" })}</small></span><input aria-label={`${t("level")} ${entry?.label ?? t("catalogUnknown")}`} type="number" min="0" max={entry?.maxLevel} step="1" value={skill.level} onChange={event => setCatalog({ skills: settings.skills.map(item => item.id === skill.id ? { ...item, level: Math.max(0, Math.min(entry?.maxLevel ?? Infinity, Number(event.target.value))) } : item) })} /></label>; })}</div>}
         {draft.type !== "pet" && <>
           <CatalogPicker label={t("preferences")} kind="preferences" options={options("preferences")} selected={settings.preferences.map(item => item.id)} multiple onChange={ids => setCatalog({ preferences: ids.map(id => settings.preferences.find(item => item.id === id) ?? { id, rating: "like" }) })} {...customLists("preferences")} />
-          {!!settings.preferences.length && <div className="catalog-value-list">{settings.preferences.map(preference => { const entry = catalogEntry("preferences", preference.id); const attraction = entry?.preferenceKind === "attraction"; return <label className="catalog-value-row" key={preference.id}><GameIcon entry={entry} /><span>{entry?.label ?? t("catalogUnknown")}</span><select aria-label={`${t("preferenceRating")} ${entry?.label ?? t("catalogUnknown")}`} value={preference.rating} onChange={event => setCatalog({ preferences: settings.preferences.map(item => item.id === preference.id ? { ...item, rating: event.target.value as "like"|"dislike" } : item) })}><option value="like">{t(attraction ? "turnOn" : "likes")}</option><option value="dislike">{t(attraction ? "turnOff" : "dislikes")}</option></select></label>; })}</div>}
+          {!!settings.preferences.length && <div className="catalog-value-list">{settings.preferences.map(preference => { const entry = displayEntry("preferences", preference.id); const attraction = entry?.preferenceKind === "attraction"; return <label className="catalog-value-row" key={preference.id}><GameIcon entry={entry} /><span>{entry?.label ?? t("catalogUnknown")}</span><select aria-label={`${t("preferenceRating")} ${entry?.label ?? t("catalogUnknown")}`} value={preference.rating} onChange={event => setCatalog({ preferences: settings.preferences.map(item => item.id === preference.id ? { ...item, rating: event.target.value as "like"|"dislike" } : item) })}><option value="like">{t(attraction ? "turnOn" : "likes")}</option><option value="dislike">{t(attraction ? "turnOff" : "dislikes")}</option></select></label>; })}</div>}
         </>}
       </div>}
       {tab === "career" && <div className="catalog-form-stack">

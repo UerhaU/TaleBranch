@@ -28,11 +28,15 @@ export const gameCatalog = data as unknown as {
   species: { id: string; label: string; type: string }[];
   entries: Record<CatalogKind, CatalogEntry[]>;
 };
+// Keep the stable game ID while using the separate age requested by the owner.
+const youngAge = gameCatalog.entries.ages.find(entry => entry.id === "human:youngadult");
+if (youngAge) youngAge.label = "Молодой";
 const indexes = Object.fromEntries(Object.entries(gameCatalog.entries).map(([kind, entries]) => [kind, new Map(entries.map(entry => [entry.id, entry]))])) as Record<CatalogKind, Map<string, CatalogEntry>>;
 export const catalogEntry = (kind: CatalogKind, id?: string) => id ? indexes[kind].get(id) : undefined;
 export const packLabel = (code: string) => gameCatalog.packs.find(pack => pack.id === code)?.label ?? code;
 export const iconUrl = (file?: string) => file ? `${import.meta.env.BASE_URL}game-icons/${encodeURIComponent(file)}` : undefined;
 const normalize = (value: string) => value.trim().toLocaleLowerCase("ru").replaceAll("ё", "е");
+const normalizeAge = (value: string) => normalize(value) === "молодой взрослый" ? "молодой" : normalize(value);
 
 export function speciesId(character: Pick<Character, "type" | "species">): string | undefined {
   if (character.type === "sim") return "human";
@@ -44,7 +48,7 @@ export function speciesId(character: Pick<Character, "type" | "species">): strin
 export function ageEntry(character: Pick<Character, "type" | "species" | "lifeStage">, stageName = character.lifeStage) {
   const sp = speciesId(character);
   const entries = gameCatalog.entries.ages.filter(entry => entry.species.includes(sp ?? ""));
-  return entries.find(entry => normalize(entry.label) === normalize(stageName))
+  return entries.find(entry => normalizeAge(entry.label) === normalizeAge(stageName))
     ?? (character.type === "pet" && normalize(stageName) === "детеныш" ? entries.find(entry => entry.stageCode === "child") : undefined);
 }
 
@@ -60,7 +64,7 @@ export function catalogOptions(kind: CatalogKind, character: Pick<Character, "ty
     if (allAges || character.type === "custom") return true;
     const allowed = sp ? entry.availability[sp] : undefined;
     if (age && allowed?.length && !allowed.includes(age)) return false;
-    if (entry.ageNames.length && !entry.ageNames.some(name => normalize(name) === normalize(character.lifeStage))) return false;
+    if (entry.ageNames.length && !entry.ageNames.some(name => normalizeAge(name) === normalizeAge(character.lifeStage))) return false;
     return true;
   }).sort((a, b) => kind === "ages" ? (a.order ?? 0) - (b.order ?? 0) : a.label.localeCompare(b.label, "ru"));
 }

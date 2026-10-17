@@ -4,6 +4,25 @@ import { createCharacter, createEmptyProject } from "./project";
 import { parseProject } from "./validation";
 
 describe("game catalogs and existing projects", () => {
+  it("keeps young and adult stages separate and supports old young-stage records", () => {
+    const character = createCharacter("Том");
+    expect(character.lifeStage).toBe("Молодой");
+    expect(character.stages.map(stage => stage.name)).toContain("Молодой");
+    expect(character.stages.map(stage => stage.name)).toContain("Взрослый");
+    expect(character.stages.map(stage => stage.name)).not.toContain("Молодой взрослый");
+    const young = ageEntry(character)!;
+    expect(young.id).toBe("human:youngadult"); expect(young.icon).toBeTruthy();
+    expect(ageEntry({ ...character, lifeStage: "Взрослый" })?.id).toBe("human:adult");
+    const old = structuredClone(character);
+    old.lifeStage = "Молодой взрослый";
+    const stage = old.stages.find(item => item.name === "Молодой")!;
+    stage.name = "Молодой взрослый";
+    stage.photo = { original:"data:image/png;base64,AA==", edited:"data:image/png;base64,AA==", updatedAt:old.updatedAt };
+    expect(ageEntry(old)?.id).toBe(young.id);
+    expect(catalogOptions("traits", old).map(item => item.id)).toEqual(catalogOptions("traits", character).map(item => item.id));
+    const project = createEmptyProject(); project.characters.push(old);
+    expect(parseProject(project).characters[0].stages.find(item => item.id === stage.id)?.photo).toEqual(stage.photo);
+  });
   it("scopes cat traits and breeds without exposing human or dog choices", () => {
     const cat = createCharacter("", "pet", { species: "Кошка", lifeStage: "Взрослый" });
     const traits = catalogOptions("traits", cat);

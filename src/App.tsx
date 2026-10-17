@@ -117,8 +117,8 @@ export default function App() {
   const refreshFolders = useCallback(() => { void recentDynastyFolders().then(setRecentFolders).catch(() => {}); }, []);
   useEffect(refreshFolders, [refreshFolders, project.id, app.folderName, app.hasProject]);
   useEffect(() => {
-    if (!app.hasProject && !app.loadError) setNewProjectName("");
-  }, [app.hasProject, app.loadError]);
+    if (app.startupError) setFolderError(t("folderFailed"));
+  }, [app.startupError, t]);
   const [toast, setToast] = useState<string | undefined>();
   const [localNodes, setLocalNodes] = useState<Node<CharacterNodeData>[]>([]);
   const flowInstance = useRef<ReactFlowInstance<Node<CharacterNodeData>, Edge> | null>(null);
@@ -379,7 +379,14 @@ export default function App() {
       const directory = await selection;
       if (mode !== "transfer" && !app.loadError && !await app.forceSave()) { notify(t("saveFailedHint")); return; }
       let next: Project; let folder: DynastyFolder;
-      if (mode === "open") ({ project: next, folder } = await DynastyFolder.open(directory));
+      if (mode === "open") {
+        let parent: DynastyDirectory | undefined;
+        for (const item of recentFolders) {
+          try { if (item.parent && await item.directory.isSameEntry(directory)) { parent = item.parent; break; } }
+          catch { /* A stale bookmark must not block opening a selected folder. */ }
+        }
+        ({ project: next, folder } = await DynastyFolder.open(directory, parent));
+      }
       else {
         next = mode === "transfer" ? project : mode === "import" ? pendingImport! : createEmptyProject(newProjectName!.trim());
         folder = await DynastyFolder.createInLocation(directory, next);

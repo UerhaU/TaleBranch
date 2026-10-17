@@ -8,6 +8,7 @@ export class MemoryDirectory implements DynastyDirectory {
   failWrite = false;
   failClose = false;
   failDelete = false;
+  deleted = false;
   holdWrite: (() => Promise<void>) | undefined;
   permission: PermissionState = "granted";
   async queryPermission() { return this.permission; }
@@ -28,16 +29,22 @@ export class MemoryDirectory implements DynastyDirectory {
     }
     return directory;
   }
-  async removeEntry(name: string) {
+  async remove(options?: { recursive?: boolean }) {
+    if (this.failDelete) throw new DOMException("Read only", "NotAllowedError");
+    if (!options?.recursive && (this.files.size || this.directories.size)) throw new DOMException("Not empty", "InvalidModificationError");
+    this.files.clear(); this.directories.clear(); this.deleted = true;
+  }
+  async removeEntry(name: string, options?: { recursive?: boolean }) {
     if (this.failDelete) throw new DOMException("Read only", "NotAllowedError");
     const directory = this.directories.get(name);
     if (directory) {
-      if (directory.files.size || directory.directories.size) throw new DOMException("Not empty", "InvalidModificationError");
+      await directory.remove(options);
       this.directories.delete(name); return;
     }
     if (!this.files.delete(name)) throw new DOMException("Missing file", "NotFoundError");
   }
   async getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle> {
+    if (this.deleted) throw new DOMException("Missing folder", "NotFoundError");
     if (this.directories.has(name)) throw new DOMException("A folder exists", "TypeMismatchError");
     if (!this.files.has(name)) {
       if (!options?.create) throw new DOMException("Missing file", "NotFoundError");

@@ -2,10 +2,12 @@ import type { Character } from "../types";
 import { catalogEntry, entryForLegacy, type CatalogKind } from "../lib/catalog";
 import { GameIcon } from "./CatalogPicker";
 import { useI18n } from "../i18n";
+import { localizedCatalogEntry } from "../lib/catalogLocalization";
 
 export function CatalogValue({ kind, id, value, character, suffix }: { kind: CatalogKind; id?: string; value?: string; character: Character; suffix?: string }) {
-  const { t } = useI18n();
-  const entry = catalogEntry(kind, id) ?? (value ? entryForLegacy(kind, value, character) : undefined);
+  const { t, locale } = useI18n();
+  const original = catalogEntry(kind, id) ?? (value ? entryForLegacy(kind, value, character) : undefined);
+  const entry = original && localizedCatalogEntry(kind, original, locale);
   return <span className="catalog-display"><GameIcon entry={entry} /><span>{entry?.label ?? value ?? t("catalogUnknown")}{suffix ? ` · ${suffix}` : ""}</span></span>;
 }
 

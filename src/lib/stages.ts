@@ -8,7 +8,7 @@ const simStages = [
   "Малыш",
   "Ребёнок",
   "Подросток",
-  "Молодой взрослый",
+  "Молодой",
   "Взрослый",
   "Пожилой",
 ];
@@ -23,5 +23,5 @@ export function createStages(type: CharacterType, species = ""): LifeStage[] {
 }
 
 export function defaultStage(type: CharacterType): string {
-  return type === "sim" ? "Молодой взрослый" : type === "pet" ? "Взрослый" : "Расцвет";
+  return type === "sim" ? "Молодой" : type === "pet" ? "Взрослый" : "Расцвет";
 }

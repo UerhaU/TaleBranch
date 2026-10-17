@@ -48,6 +48,28 @@ function click(text: string, scope: ParentNode = container) {
 const dialog = () => Array.from(container.querySelectorAll<HTMLElement>('[role="dialog"]')).at(-1)!;
 
 describe("dynasty and trash deletion in the interface", () => {
+  it("starts on the welcome screen without automatically opening a creation dialog", () => {
+    act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    expect(container.querySelector(".dynasty-welcome")).not.toBeNull();
+    expect(dialog()).toBeUndefined();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(dialog()).toBeUndefined(); expect(listProjects()).toEqual([]);
+    click("Новая династия"); expect(dialog().getAttribute("aria-label")).toBe("Новая династия");
+  });
+  it("warns about deleting the whole folder and returns to the welcome screen after confirmation", async () => {
+    vi.stubGlobal("crypto", webcrypto);
+    const directory = new MemoryDirectory(); await DynastyFolder.create(directory, createDemoProject());
+    directory.files.set("notes.txt", "Inside dynasty");
+    vi.stubGlobal("showDirectoryPicker", vi.fn(async () => directory));
+    act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    await act(async () => { click("Открыть папку династии"); await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy()); });
+    click("Настройки"); click("Удалить династию", dialog());
+    expect(dialog().textContent).toContain("папка династии");
+    expect(dialog().textContent).toContain("любые другие файлы внутри");
+    await act(async () => { click("Удалить безвозвратно", dialog()); await vi.waitFor(() => expect(directory.deleted).toBe(true)); });
+    expect(container.querySelector(".dynasty-welcome")).not.toBeNull(); expect(dialog()).toBeUndefined();
+    expect(directory.files.size).toBe(0);
+  });
   it("renders translucent personal connections with all relationship labels and direction", () => {
     mount([], project => {
       const labels = project.pairLinks[1].labels;
@@ -135,7 +157,7 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(loadProject(project.id)?.trashedCharacters).toEqual([]);
   });
 
-  it("asks for a name and folder after deletion and creates nothing if cancelled or reopened", async () => {
+  it("shows the welcome screen after deletion and restart until creation is explicitly requested", async () => {
     vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory(); const picker = vi.fn(async () => directory); vi.stubGlobal("showDirectoryPicker", picker);
     const project = mount();
@@ -147,14 +169,14 @@ describe("dynasty and trash deletion in the interface", () => {
     click("Удалить династию", dialog()); click("Удалить безвозвратно", dialog());
     expect(loadProject(project.id)).toBeNull();
     expect(loadInitialProject()).toBeNull(); expect(listProjects()).toEqual([]);
-    expect(dialog().getAttribute("aria-label")).toBe("Новая династия");
-    expect(dialog().querySelector<HTMLInputElement>("input")?.value).toBe("");
-    click("Отмена", dialog());
+    expect(dialog()).toBeUndefined();
     act(() => { vi.advanceTimersByTime(1000); window.dispatchEvent(new Event("pagehide")); });
     expect(container.querySelector(".dynasty-welcome")?.textContent).toContain("Создайте свою династию");
     expect(listProjects()).toEqual([]);
     act(() => root.unmount()); root = createRoot(container);
     act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    expect(dialog()).toBeUndefined();
+    click("Новая династия");
     expect(dialog().getAttribute("aria-label")).toBe("Новая династия");
     expect(loadInitialProject()).toBeNull();
     const name = dialog().querySelector<HTMLInputElement>("input")!;
@@ -179,7 +201,6 @@ describe("dynasty and trash deletion in the interface", () => {
     const directory = new MemoryDirectory(); vi.stubGlobal("showDirectoryPicker", vi.fn(async () => directory));
     const imported = createDemoProject();
     act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
-    click("Отмена", dialog());
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     await act(async () => {
       Object.defineProperty(fileInput, "files", { value: [{ text: async () => JSON.stringify({ app: "dynasty-chronicles", formatVersion: 1, project: imported }) }] });
@@ -200,7 +221,7 @@ describe("dynasty and trash deletion in the interface", () => {
     const directory = new MemoryDirectory(); const project = createDemoProject();
     await DynastyFolder.create(directory, project);
     vi.stubGlobal("showDirectoryPicker", vi.fn(async () => directory));
-    act(() => root.render(<LanguageProvider><App /></LanguageProvider>)); click("Отмена", dialog());
+    act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
     await act(async () => { click("Открыть папку династии"); await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy()); });
     expect(container.querySelector(".folder-error")?.textContent).toBeUndefined();
     expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name);
@@ -217,6 +238,7 @@ describe("dynasty and trash deletion in the interface", () => {
   it("cancels folder selection without creating a dynasty or falling back to browser storage", async () => {
     vi.stubGlobal("showDirectoryPicker", vi.fn(async () => { throw new DOMException("Cancelled", "AbortError"); }));
     act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    click("Новая династия");
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Не создавать"); input.dispatchEvent(new Event("input", { bubbles: true })); });
     await act(async () => click("Выбрать место сохранения", dialog()));
@@ -232,6 +254,8 @@ describe("dynasty and trash deletion in the interface", () => {
     const picker = vi.fn(() => new Promise<MemoryDirectory>(resolve => { selected = resolve; }));
     vi.stubGlobal("showDirectoryPicker", picker);
     act(() => root.render(<StrictMode><LanguageProvider><App /></LanguageProvider></StrictMode>));
+    expect(dialog()).toBeUndefined();
+    click("Новая династия");
     click("Выбрать место сохранения", dialog());
     const create = () => Array.from(dialog().querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.trim() === "Создать")!;
     expect(create().disabled).toBe(true);
@@ -264,6 +288,7 @@ describe("dynasty and trash deletion in the interface", () => {
     directory.files.set("Мои документы.txt", "Не трогать");
     const picker = vi.fn(async () => directory); vi.stubGlobal("showDirectoryPicker", picker);
     act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    click("Новая династия");
     await act(async () => click("Выбрать место сохранения", dialog()));
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
@@ -282,6 +307,7 @@ describe("dynasty and trash deletion in the interface", () => {
   it("does not launch a directory picker from Create or Enter while no folder is selected", () => {
     const picker = vi.fn(); vi.stubGlobal("showDirectoryPicker", picker);
     act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    click("Новая династия");
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Дом Вороновых");
@@ -298,6 +324,7 @@ describe("dynasty and trash deletion in the interface", () => {
     const picker = vi.fn().mockResolvedValueOnce(directory).mockRejectedValueOnce(new DOMException("Cancelled", "AbortError"));
     vi.stubGlobal("showDirectoryPicker", picker);
     act(() => root.render(<LanguageProvider><App /></LanguageProvider>));
+    click("Новая династия");
     await act(async () => click("Выбрать место сохранения", dialog()));
     await act(async () => click(directory.name, dialog()));
     expect(dialog().textContent).toContain(directory.name);
