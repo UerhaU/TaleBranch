@@ -499,6 +499,8 @@ const koi: Record<string, string> = {
 const translations: Record<LocaleCode, Record<string, string>> = { ru: {}, en, de, fr, es, "pt-BR": ptBR, "zh-CN": zhCN, sr, koi };
 
 const knownValueKeys: Record<string, string> = {
+  "Кошка":"speciesCat", "Кот":"speciesCat", "Собака":"speciesDog", "Пёс":"speciesDog", "Лошадь":"speciesHorse", "Конь":"speciesHorse",
+  "Котёнок":"stageKitten", "Щенок":"stagePuppy", "Жеребёнок":"stageFoal",
   "Новорождённый":"stageNewborn", "Младенец":"stageInfant", "Малыш":"stageToddler", "Подросток":"stageTeen",
   "Молодой взрослый":"stageYoungAdult", "Взрослый":"stageAdult", "Пожилой":"stageElder", "Детёныш":"stageYoungPet", "Начало":"stageBeginning",
   "Расцвет":"stagePrime", "Поздний этап":"stageLate", "Биологическое":"biological", "Усыновление":"adoption", "Опека":"guardianship",
@@ -564,9 +566,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<I18nContextValue>(() => {
     const t = (key: string, variables?: Record<string, string | number>) => {
-      const dictionary = locale === "ru" ? ruFallback : translations[locale];
-      const translated = extraMessages[locale === "ru" ? "ru" : "en"][key] ?? dictionary[key] ?? en[key] ?? key;
-      return interpolate(translated, variables);
+      return translateMessage(locale, key, variables);
     };
     return {
       locale,
@@ -574,7 +574,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       systemLocale,
       setPreference: (next) => setPreferenceState(next),
       t,
-      valueLabel: (raw) => knownValueKeys[raw] ? t(knownValueKeys[raw]) : raw,
+      valueLabel: (raw) => translateSystemValue(locale, raw),
     };
   }, [locale, preference, systemLocale]);
 
@@ -605,5 +605,22 @@ const ruFallback: Record<string, string> = {
 
 export function getMissingTranslationKeys(locale: LocaleCode): string[] {
   const dictionary = locale === "ru" ? ruFallback : translations[locale];
-  return Object.keys(en).filter((key) => dictionary[key] === undefined);
+  return getTranslationKeys().filter((key) => extraMessages[locale]?.[key] === undefined && dictionary[key] === undefined);
+}
+
+export function getTranslationKeys(): string[] {
+  return [...new Set([...Object.keys(en), ...Object.keys(extraMessages.en)])];
+}
+
+export function translateMessage(locale: LocaleCode, key: string, variables?: Record<string, string | number>): string {
+  const dictionary = locale === "ru" ? ruFallback : translations[locale];
+  const fallbackLocale = locale === "koi" ? "ru" : "en";
+  // A locale's own translation always wins over a fallback language.
+  const translated = extraMessages[locale]?.[key] ?? dictionary[key]
+    ?? extraMessages[fallbackLocale][key] ?? (locale === "koi" ? ruFallback[key] : en[key]) ?? key;
+  return interpolate(translated, variables);
+}
+
+export function translateSystemValue(locale: LocaleCode, raw: string): string {
+  return knownValueKeys[raw] ? translateMessage(locale, knownValueKeys[raw]) : raw;
 }

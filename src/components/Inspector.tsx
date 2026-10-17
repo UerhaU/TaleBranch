@@ -6,6 +6,10 @@ import {
 import type { Character, Project } from "../types";
 import { useI18n } from "../i18n";
 import type { LinkEdit } from "./LinkDialog";
+import { CatalogValue, CatalogValues } from "./CatalogDisplay";
+import { GameIcon } from "./CatalogPicker";
+import { ageEntry, catalogEntry } from "../lib/catalog";
+import { genderChoice, genderChoices } from "../lib/gender";
 
 const tabs = [
   ["main", "main", CircleUserRound],
@@ -93,6 +97,9 @@ export function Inspector({
   const pairs = project.pairLinks.filter((link) => link.aId === character.id || link.bId === character.id);
   const characterName = (id: string) => project.characters.find((item) => item.id === id)?.displayName ?? t("unknownCharacter");
   const selectedPhotoStage = character.stages.find((stage) => stage.name === activePhotoStage);
+  const gender = genderChoice(character.gender);
+  const genderLabel = character.type === "pet" ? gender === "female" ? "petFemale" : gender === "male" ? "petMale" : undefined
+    : genderChoices.find(choice => choice.value === gender)?.label;
 
   const acceptFile = (file?: File) => {
     if (!file) return;
@@ -108,9 +115,9 @@ export function Inspector({
           <i>{character.type === "pet" ? <PawPrint size={15} /> : <CircleUserRound size={15} />}</i>
         </div>
         <div className="profile-title">
-          <span className="eyebrow">{character.type === "pet" ? character.species || t("pet") : `${t("generation")} ${character.generation}`}</span>
+          {character.type === "pet" && <span className="eyebrow">{valueLabel(character.species) || t("pet")}</span>}
           <h2>{character.displayName}</h2>
-          <p>{valueLabel(character.lifeStage)} · {t(character.status)}</p>
+          <p className="profile-age"><GameIcon entry={ageEntry(character)} />{valueLabel(character.lifeStage)} · {t(character.status)}</p>
         </div>
         <button className="icon-button" onClick={onClose} aria-label={t("closeProfile")}><X size={18} /></button>
       </header>
@@ -132,7 +139,7 @@ export function Inspector({
         )}
       </div>
       <nav className="profile-tabs">
-        {tabs.map(([id, labelKey, Icon]) => (
+        {tabs.filter(([id]) => character.type !== "pet" || id !== "career").map(([id, labelKey, Icon]) => (
           <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} title={t(labelKey)}>
             <Icon size={17} /><span>{t(labelKey)}</span>
           </button>
@@ -151,26 +158,24 @@ export function Inspector({
               <dl className="facts">
                 {([
                   ["firstName", character.firstName], ["lastName", character.lastName], ["aliases", character.aliases.join(", ")],
-                  ["pronouns", character.pronouns], ["gender", character.gender], ["occultType", character.occultType],
-                  ["birthDate", character.birthDate], ["deathDate", character.deathDate], ["education", character.education], ["deathCause", character.deathCause],
+                  ["pronouns", character.pronouns], [character.type === "pet" ? "petSex" : "gender", character.gender ? t(genderLabel ?? "notDefined") : ""],
+                  ["education", character.education],
                 ] as const).filter(([, value]) => value).map(([key, value]) => <div key={key}><dt>{t(key)}</dt><dd>{value}</dd></div>)}
+                {(character.catalog?.occultIds.length || character.occultType) ? <div><dt>{t("occultType")}</dt><dd><CatalogValues kind="occults" ids={character.catalog?.occultIds} legacy={character.occultType ? [character.occultType] : []} character={character} /></dd></div> : null}
+                {(character.catalog?.deathCauseId || character.deathCause) && <div><dt>{t("deathCause")}</dt><dd><CatalogValue kind="deathCauses" id={character.catalog?.deathCauseId} value={character.deathCause || undefined} character={character} /></dd></div>}
+                {(character.catalog?.breedId || character.catalog?.customBreed) && <div><dt>{t("breed")}</dt><dd><CatalogValue kind="breeds" id={character.catalog?.breedId} value={character.catalog?.customBreed || undefined} character={character} /></dd></div>}
+                {character.type === "pet" && character.catalog && <div><dt>{t("neutered")}</dt><dd>{t(character.catalog.neutered === "unknown" ? "notDefined" : character.catalog.neutered)}</dd></div>}
               </dl>
             </section>
-            <section className="profile-section">
+            {character.type !== "pet" && <section className="profile-section">
               <div className="section-heading"><span>{t("aboutCharacter")}</span></div>
               <dl className="facts">
-                <div><dt>{t("home")}</dt><dd>{character.household || t("notSpecified")}</dd></div>
-                <div><dt>{t("world")}</dt><dd>{character.world || t("notSpecified")}</dd></div>
-                <div><dt>{t("lot")}</dt><dd>{character.lot || t("notSpecified")}</dd></div>
-                <div><dt>{t("goal")}</dt><dd>{character.aspiration || t("notSpecified")}</dd></div>
+                <div><dt>{t("goal")}</dt><dd>{character.catalog?.aspirationId || character.aspiration ? <CatalogValue kind="aspirations" id={character.catalog?.aspirationId} value={character.aspiration || undefined} character={character} /> : t("notSpecified")}</dd></div>
               </dl>
-            </section>
+            </section>}
             <section className="profile-section">
               <div className="section-heading"><span>{t("traits")}</span><button onClick={() => setTab("traits")}>{t("allTraits")} <ChevronRight size={14} /></button></div>
-              <div className="large-chips">
-                {character.traits.map((trait) => <span key={trait}>{trait}</span>)}
-                {!character.traits.length && <p className="empty-inline">{t("traitsEmpty")}</p>}
-              </div>
+              <CatalogValues kind="traits" ids={character.catalog?.traitIds} legacy={character.traits} character={character} />
             </section>
           </>
         )}
@@ -188,7 +193,7 @@ export function Inspector({
                   }}
                 >
                   <div className="stage-thumb">
-                    {stage.photo?.edited ? <img src={stage.photo.edited} alt="" /> : <ImagePlus size={18} />}
+                    {stage.photo?.edited ? <img src={stage.photo.edited} alt="" /> : ageEntry(character, stage.name) ? <GameIcon entry={ageEntry(character, stage.name)} /> : <ImagePlus size={18} />}
                   </div>
                   <div><strong>{valueLabel(stage.name)}{stage.name === character.lifeStage ? ` · ${t("currentStage")}` : ""}</strong><small>{stage.photo ? t("photoAdded") : t("noPhoto")}</small></div>
                 </button>
@@ -209,27 +214,21 @@ export function Inspector({
         {tab === "traits" && (
           <section className="profile-section">
             <div className="section-heading"><span>{t("characteristics")}</span></div>
-            {[
-              [t("traits"), character.traits],
-              [t("preferences"), character.preferences],
-              [t("skills"), character.skills],
-              [t("tags"), character.tags],
-            ].map(([label, values]) => (
-              <div className="trait-group" key={label as string}>
-                <h4>{label as string}</h4>
-                <div className="large-chips">
-                  {(values as string[]).map((value) => <span key={value}>{value}</span>)}
-                  {!(values as string[]).length && <span className="empty-inline">{t("notFilled")}</span>}
-                </div>
-              </div>
-            ))}
+            <div className="trait-group"><h4>{t("traits")}</h4><CatalogValues kind="traits" ids={character.catalog?.traitIds} legacy={character.traits} character={character} /></div>
+            <div className="trait-group"><h4>{t("preferences")}</h4><CatalogValues kind="preferences" ids={character.catalog?.preferences.map(item => item.id)} legacy={character.preferences} character={character} suffixes={Object.fromEntries((character.catalog?.preferences ?? []).map(item => [item.id, t(catalogEntry("preferences", item.id)?.preferenceKind === "attraction" ? item.rating === "like" ? "turnOn" : "turnOff" : item.rating === "like" ? "likes" : "dislikes")]))} /></div>
+            <div className="trait-group"><h4>{t("skills")}</h4><CatalogValues kind="skills" ids={character.catalog?.skills.map(item => item.id)} legacy={character.skills} character={character} suffixes={Object.fromEntries((character.catalog?.skills ?? []).map(item => [item.id, `${t("level")} ${item.level}`]))} /></div>
+            <div className="trait-group"><h4>{t("tags")}</h4><div className="large-chips">{character.tags.map((tag,index) => <span key={`${index}:${tag}`}>{tag}</span>)}</div></div>
           </section>
         )}
         {tab === "career" && (
-          <section className="profile-section empty-section">
-            <BriefcaseBusiness size={26} />
-            <h3>{t("careerHistory")}</h3>
-            <p>{t("careerHint")}</p>
+          <section className="profile-section">
+            <div className="section-heading"><span>{t("careerHistory")}</span></div>
+            {!character.catalog?.careers.length && <p className="section-hint">{t("careerHint")}</p>}
+            {character.catalog?.careers.map(period => <article className="career-profile-period" key={period.id}>
+              <h4><CatalogValue kind="careers" id={period.careerId} value={period.customName || undefined} character={character} /></h4>
+              {period.level !== undefined && <p>{t("level")} {period.level}</p>}
+              {period.notes && <p className="preserve-lines">{period.notes}</p>}
+            </article>)}
             <button className="button subtle" onClick={onEdit}>{t("fillProfile")}</button>
           </section>
         )}

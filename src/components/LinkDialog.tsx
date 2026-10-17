@@ -19,6 +19,7 @@ const relationshipPresets = [
   ["Враги", "swords", "#5C294D"],
   ["Разведены", "broken", "#8096A6"],
 ] as const;
+const familyKinds = ["Биологическое", "Усыновление", "Опека", "Приёмная семья", "Отчим / мачеха", "Донор", "Создатель", "Неизвестно"];
 
 export type LinkEdit = { kind: "parent"; link: ParentLink } | { kind: "pair"; pair: PairLink; label: RelationshipLabel };
 
@@ -95,7 +96,7 @@ function CharacterPicker({
         {selected && <CharacterAvatar character={selected} />}
         <span>
           <strong>{selected?.displayName ?? t("chooseCharacter")}</strong>
-          {selected && <small>{valueLabel(selected.lifeStage)} · {t("generation")} {selected.generation}</small>}
+          {selected && <small>{valueLabel(selected.lifeStage)}</small>}
         </span>
         <ChevronDown size={15} />
       </button>
@@ -116,7 +117,7 @@ function CharacterPicker({
               <CharacterAvatar character={character} />
               <span>
                 <strong>{character.displayName}</strong>
-                <small>{valueLabel(character.lifeStage)} · {t("generation")} {character.generation}</small>
+                <small>{valueLabel(character.lifeStage)}</small>
               </span>
             </button>
           ))}
@@ -237,17 +238,20 @@ export function LinkDialog({
           <div className="form-grid">
             <label className="field span-2">
               <span>{t("familyType")}</span>
-              <input list="family-kinds" value={parentKind} onChange={(event) => { setParentKind(event.target.value); setBiological(event.target.value === "Биологическое" ? "yes" : "no"); }} />
-              <datalist id="family-kinds">{["Биологическое", "Усыновление", "Опека", "Приёмная семья", "Отчим / мачеха", "Донор", "Создатель", "Неизвестно"].map((value) => <option key={value} value={value}>{valueLabel(value)}</option>)}</datalist>
+              <input list="family-kinds" value={valueLabel(parentKind)} onChange={(event) => {
+                const canonical = familyKinds.find(kind => valueLabel(kind) === event.target.value) ?? event.target.value;
+                setParentKind(canonical); setBiological(canonical === "Биологическое" ? "yes" : "no");
+              }} />
+              <datalist id="family-kinds">{familyKinds.map(value => <option key={value} value={valueLabel(value)} />)}</datalist>
             </label>
             <label className="field span-2"><span>{t("biologicalLink")}</span><select value={biological} onChange={(event) => setBiological(event.target.value as ParentLink["biological"])}><option value="yes">{t("yes")}</option><option value="no">{t("no")}</option><option value="unknown">{t("unknown")}</option></select></label>
             <label className="field">
               <span>{t("parentRole")}</span>
-              <input value={parentRole} onChange={(event) => setParentRole(event.target.value)} />
+              <input value={valueLabel(parentRole)} onChange={(event) => setParentRole(event.target.value)} />
             </label>
             <label className="field">
               <span>{t("childRole")}</span>
-              <input value={childRole} onChange={(event) => setChildRole(event.target.value)} />
+              <input value={valueLabel(childRole)} onChange={(event) => setChildRole(event.target.value)} />
             </label>
           </div>
         ) : (
@@ -267,7 +271,7 @@ export function LinkDialog({
                 ))}
               </div>
             </div>
-            <label className="field"><span>{t("customRelationship")}</span><input value={relationship.name} onChange={(event) => setRelationship({ ...relationship, name: event.target.value })} /></label>
+            <label className="field"><span>{t("customRelationship")}</span><input value={valueLabel(relationship.name)} onChange={(event) => setRelationship({ ...relationship, name: event.target.value })} /></label>
             <label className="field">
               <span>{t("direction")}</span>
               <select value={direction} onChange={(event) => setDirection(event.target.value as RelationshipDirection)}>

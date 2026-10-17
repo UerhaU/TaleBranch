@@ -1,5 +1,6 @@
 import type { CharacterType, LifeStage } from "../types";
 import { makeId } from "./id";
+import { gameCatalog, speciesId } from "./catalog";
 
 const simStages = [
   "Новорождённый",
@@ -14,8 +15,10 @@ const simStages = [
 
 const petStages = ["Детёныш", "Взрослый", "Пожилой"];
 
-export function createStages(type: CharacterType): LifeStage[] {
-  const names = type === "sim" ? simStages : type === "pet" ? petStages : ["Начало", "Расцвет", "Поздний этап"];
+export function createStages(type: CharacterType, species = ""): LifeStage[] {
+  const sp = speciesId({ type, species });
+  const catalogNames = gameCatalog.entries.ages.filter(entry => entry.species.includes(sp ?? "")).sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map(entry => entry.label);
+  const names = catalogNames.length ? catalogNames : type === "sim" ? simStages : type === "pet" ? petStages : ["Начало", "Расцвет", "Поздний этап"];
   return names.map((name, order) => ({ id: makeId("stage"), name, order }));
 }
 

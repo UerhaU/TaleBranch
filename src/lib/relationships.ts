@@ -1,5 +1,10 @@
-import type { PairLink, Project, RelationshipDirection } from "../types";
+import type { Character, PairLink, Project, RelationshipDirection } from "../types";
 import { normalizePair } from "./project";
+
+export function validPetOwnerIds(character: Pick<Character, "id" | "ownerIds">, characters: Character[]): string[] {
+  const eligible = new Set(characters.filter((item) => item.type !== "pet" && item.id !== character.id).map((item) => item.id));
+  return [...new Set(character.ownerIds ?? [])].filter((id) => eligible.has(id));
+}
 
 export function reverseDirection(direction: RelationshipDirection): RelationshipDirection {
   return direction === "a-to-b" ? "b-to-a" : direction === "b-to-a" ? "a-to-b" : "mutual";
@@ -50,4 +55,26 @@ export function restoreTrashedCharacter(project: Project, id: string): void {
     return false;
   });
   delete archive.positions[id];
+}
+
+export function permanentlyDeleteTrashedCharacters(project: Project, ids: string[]): void {
+  const requested = new Set(ids);
+  // Only trash entries may be purged; stale requests must never delete active profiles.
+  const removed = new Set(project.trashedCharacters.filter((item) => requested.has(item.id)).map((item) => item.id));
+  project.trashedCharacters = project.trashedCharacters.filter((item) => !removed.has(item.id));
+  const keepParent = (link: Project["parentLinks"][number]) => !removed.has(link.parentId) && !removed.has(link.childId);
+  const keepPair = (link: PairLink) => !removed.has(link.aId) && !removed.has(link.bId);
+  project.parentLinks = project.parentLinks.filter(keepParent);
+  project.pairLinks = project.pairLinks.filter(keepPair);
+  if (project.trashLinks) {
+    project.trashLinks.parentLinks = project.trashLinks.parentLinks.filter(keepParent);
+    project.trashLinks.pairLinks = project.trashLinks.pairLinks.filter(keepPair);
+  }
+  for (const id of removed) {
+    delete project.positions[id];
+    if (project.trashLinks) delete project.trashLinks.positions[id];
+  }
+  for (const character of [...project.characters, ...project.trashedCharacters]) {
+    if (character.ownerIds) character.ownerIds = character.ownerIds.filter((id) => !removed.has(id));
+  }
 }

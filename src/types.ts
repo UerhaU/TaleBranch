@@ -11,6 +11,36 @@ export interface StagePhoto {
 
 export interface PhotoTransform { zoom: number; x: number; y: number; rotation: number; flipped: boolean }
 
+export interface SkillValue { id: string; level: number }
+export interface PreferenceValue { id: string; rating: "like" | "dislike" }
+export interface CareerPeriod {
+  id: string;
+  careerId: string;
+  customName: string;
+  branch: string;
+  title: string;
+  level?: number;
+  start: string;
+  end: string;
+  current: boolean;
+  notes: string;
+}
+
+/** Only references and character values; the shared game catalog is not copied into projects. */
+export interface CharacterCatalog {
+  version: 1;
+  traitIds: string[];
+  aspirationId: string;
+  occultIds: string[];
+  breedId: string;
+  customBreed: string;
+  neutered: "unknown" | "yes" | "no";
+  deathCauseId: string;
+  skills: SkillValue[];
+  preferences: PreferenceValue[];
+  careers: CareerPeriod[];
+}
+
 export interface LifeStage {
   id: string;
   name: string;
@@ -48,6 +78,7 @@ export interface Character {
   tags: string[];
   color: string;
   ownerIds?: string[];
+  catalog?: CharacterCatalog;
   stages: LifeStage[];
   createdAt: string;
   updatedAt: string;
