@@ -2,6 +2,8 @@ import type { Character, CharacterType, PairLink, ParentLink, Project } from "..
 import { makeId } from "./id";
 import { createStages, defaultStage } from "./stages";
 
+export { autoLayout } from "./autoLayout";
+
 const now = () => new Date().toISOString();
 
 export function createCharacter(
@@ -281,50 +283,6 @@ export function wouldCreateAncestorCycle(project: Project, parentId: string, chi
     queue.push(...(childrenByParent.get(current) ?? []));
   }
   return false;
-}
-
-export function autoLayout(project: Project): Record<string, { x: number; y: number }> {
-  const people = project.characters.filter((character) => character.type !== "pet");
-  const peopleIds = new Set(people.map((character) => character.id));
-  const incoming = new Map(people.map((character) => [character.id, 0]));
-  const children = new Map<string, string[]>();
-  project.parentLinks
-    .filter((link) => link.active && peopleIds.has(link.parentId) && peopleIds.has(link.childId))
-    .forEach((link) => {
-      incoming.set(link.childId, (incoming.get(link.childId) ?? 0) + 1);
-      children.set(link.parentId, [...(children.get(link.parentId) ?? []), link.childId]);
-    });
-
-  const generation = new Map<string, number>();
-  const queue = people.filter((character) => (incoming.get(character.id) ?? 0) === 0).map((character) => character.id);
-  queue.forEach((id) => generation.set(id, 0));
-  for (let index = 0; index < queue.length; index++) {
-    const id = queue[index];
-    const level = generation.get(id) ?? 0;
-    (children.get(id) ?? []).forEach((childId) => {
-      generation.set(childId, Math.max(generation.get(childId) ?? 0, level + 1));
-      incoming.set(childId, incoming.get(childId)! - 1);
-      if (incoming.get(childId) === 0) queue.push(childId);
-    });
-  }
-  people.forEach((character) => {
-    if ((incoming.get(character.id) ?? 0) > 0) generation.set(character.id, Math.max(0, character.generation - 1));
-  });
-
-  const levels = new Map<number, string[]>();
-  people.forEach((character) => {
-    const level = generation.get(character.id) ?? 0;
-    levels.set(level, [...(levels.get(level) ?? []), character.id]);
-  });
-  const positions: Record<string, { x: number; y: number }> = {};
-  [...levels.entries()]
-    .sort(([a], [b]) => a - b)
-    .forEach(([level, ids]) => {
-      ids.forEach((id, index) => {
-        positions[id] = { x: 100 + index * 250, y: 90 + level * 230 };
-      });
-    });
-  return positions;
 }
 
 export function hasAncestorCycle(project: Project): boolean {
