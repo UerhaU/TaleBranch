@@ -42,11 +42,13 @@ function ListInput({ value, onChange }: { value: string[]; onChange: (value: str
 
 export function CharacterDialog({
   character,
+  initialType = "sim",
   ownerCandidates = [],
   onClose,
   onSave,
 }: {
   character?: Character;
+  initialType?: CharacterType;
   ownerCandidates?: Character[];
   onClose: () => void;
   onSave: (character: Character) => void;
@@ -56,7 +58,7 @@ export function CharacterDialog({
     const entry = catalogEntry(kind, id);
     return entry && localizedCatalogEntry(kind, entry, locale);
   };
-  const [draft, setDraft] = useState(() => prepareCatalogDraft(character ?? createCharacter("", "sim")));
+  const [draft, setDraft] = useState(() => prepareCatalogDraft(character ?? createCharacter("", initialType)));
   const [tab, setTab] = useState("main"),
     [allAges, setAllAges] = useState(false);
   const ownerHintId = useId();

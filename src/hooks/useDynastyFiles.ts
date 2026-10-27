@@ -14,7 +14,7 @@ import {
 } from "../lib/folderStorage";
 import { recordStorageFailure } from "../lib/storageDiagnostics";
 import { saveDesktopExport } from "../lib/desktopStorage";
-import type { Project, Theme } from "../types";
+import type { Project } from "../types";
 import type { ProjectApi } from "./projectApi";
 
 type Options = {
@@ -217,11 +217,16 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     });
   };
 
-  const exportPng = async (theme: Theme) => {
+  const exportPng = async () => {
     const canvas = document.querySelector<HTMLElement>(".flow-wrap");
     if (!canvas) return;
     try {
-      const dataUrl = await toPng(canvas, { backgroundColor: theme === "dark" ? "#160B18" : "#E8EEF1", pixelRatio: 2 });
+      const dataUrl = await toPng(canvas, {
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--tb-canvas").trim(),
+        pixelRatio: 2,
+        // Floating panels are not part of the tree picture.
+        filter: (node) => !(node instanceof HTMLElement && node.classList.contains("tb-no-export")),
+      });
       if (isTauri()) {
         if (
           await saveDesktopExport(

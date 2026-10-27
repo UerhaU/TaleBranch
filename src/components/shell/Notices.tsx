@@ -1,13 +1,13 @@
-import { X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useI18n } from "../../i18n";
 
 /** Message about a failed folder operation, closed by the user. */
 export function FolderErrorBar({ message, onClose }: { message: string; onClose: () => void }) {
   const { t } = useI18n();
   return (
-    <div className="folder-error" role="alert">
+    <div className="tb-folder-error folder-error" role="alert">
       <span>{message}</span>
-      <button className="button ghost" onClick={onClose} aria-label={t("close")}>
+      <button className="tb-icon-btn" onClick={onClose} aria-label={t("close")} title={t("close")}>
         <X size={16} />
       </button>
     </div>
@@ -16,8 +16,8 @@ export function FolderErrorBar({ message, onClose }: { message: string; onClose:
 
 export function Toast({ message }: { message: string }) {
   return (
-    <div className="toast" role="status" aria-live="polite">
-      <i />
+    <div className="tb-toast toast" role="status" aria-live="polite">
+      <Sparkles size={17} />
       <span>{message}</span>
     </div>
   );

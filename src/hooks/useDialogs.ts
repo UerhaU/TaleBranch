@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useReducer } from "react";
 import type { LinkEdit } from "../components/LinkDialog";
-import type { Character, PhotoTransform } from "../types";
+import type { Character, CharacterType, PhotoTransform } from "../types";
 
 export type PhotoDraft = { original: string; stageName: string; characterId: string; transform?: PhotoTransform };
 export type DeleteDraft = { character: Character; family: number; pairs: number; photos: number };
@@ -19,7 +19,7 @@ export type UtilityPanel = "guide" | "updates" | "donation";
 type DialogValues = {
   projectMenu: true;
   filters: true;
-  addCharacter: true;
+  addCharacter: { type: CharacterType };
   editCharacter: Character;
   link: LinkDialogState;
   photo: PhotoDraft;

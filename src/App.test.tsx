@@ -110,6 +110,7 @@ describe("dynasty and trash deletion in the interface", () => {
       await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy());
     });
     click("Настройки");
+    click("Настройки династии");
     click("Удалить династию", dialog());
     expect(dialog().textContent).toContain("папка династии");
     expect(dialog().textContent).toContain("любые другие файлы внутри");
@@ -133,17 +134,16 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(edge.data?.text).toContain("Любовники");
     expect(edge.data?.text).toContain("Лучшие друзья");
     expect(edge.data?.text).toContain("тайно");
-    expect(edge.style?.strokeOpacity).toBe(0.35);
-    expect(edge.markerEnd).toBeDefined();
-    expect(edge.markerStart).toBeUndefined();
+    expect(edge.data?.toTarget).toBe(true);
+    expect(edge.data?.toSource).toBe(false);
     expect(graph.edges.filter((item) => item.className === "family-edge")).toHaveLength(4);
   });
 
   it("toggles personal connections separately and excludes connections to characters in trash", () => {
     mount(["char_elena"]);
     expect(graph.edges.filter((item) => item.type === "relationship")).toHaveLength(1);
-    click("Фильтры");
-    const label = Array.from(container.querySelectorAll(".filter-panel label")).find(
+    click("Вид");
+    const label = Array.from(container.querySelectorAll(".tb-view-menu label")).find(
       (item) => item.textContent === "Отношения",
     )!;
     act(() => label.querySelector<HTMLInputElement>("input")!.click());
@@ -168,7 +168,9 @@ describe("dynasty and trash deletion in the interface", () => {
   });
   it("requires confirmation to purge one profile and keeps restoration available after cancellation", () => {
     const project = mount(["char_vera"]);
-    expect(container.querySelector(".project-switcher small")?.textContent).toBe("Династия");
+    expect(container.querySelector(".project-switcher > button")?.getAttribute("aria-label")).toBe(
+      `Династия: ${project.name}`,
+    );
     click("Корзина");
     click("Удалить «Вера Воронова» безвозвратно?");
     expect(dialog().textContent).toContain("Это действие нельзя отменить");
@@ -226,6 +228,7 @@ describe("dynasty and trash deletion in the interface", () => {
     vi.stubGlobal("showDirectoryPicker", picker);
     const project = mount();
     click("Настройки");
+    click("Настройки династии");
     click("Удалить династию", dialog());
     expect(dialog().textContent).toContain(project.name);
     click("Отмена", dialog());
@@ -344,6 +347,7 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name);
     expect(listProjects()).toEqual([]);
     click("Настройки");
+    click("Настройки династии");
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Новое название");
@@ -558,7 +562,7 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(cancelledDirectory.files.size).toBe(0);
     expect((await DynastyFolder.open(await destination.getDirectoryHandle(project.name))).project).toEqual(project);
     expect(loadProject(project.id)).toEqual(old);
-    expect(container.querySelector(".save-state")?.textContent).toContain(project.name);
+    expect(container.querySelector(".save-state")?.getAttribute("title")).toContain(project.name);
   });
 
   it("offers dynasty deletion from the switcher and opens another saved dynasty", () => {

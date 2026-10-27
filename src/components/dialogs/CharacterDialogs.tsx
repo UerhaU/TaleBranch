@@ -46,6 +46,7 @@ export function CharacterDialogs({
     <>
       {addCharacter && (
         <CharacterDialog
+          initialType={addCharacter.type}
           ownerCandidates={project.characters}
           onClose={() => dialogs.close("addCharacter")}
           onSave={(character) => {

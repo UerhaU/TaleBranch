@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type RefObject } from "react
 import {
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
   ReactFlow,
+  ReactFlowProvider,
   applyNodeChanges,
   type AriaLabelConfig,
   type Edge,
@@ -12,34 +11,44 @@ import {
   type OnNodesChange,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { Link2, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { CharacterNode, type CharacterNodeData } from "../CharacterNode";
 import { RelationshipEdge } from "../RelationshipEdge";
+import { FamilyEdge } from "../FamilyEdge";
 import { useI18n } from "../../i18n";
 import type { ProjectApi } from "../../hooks/projectApi";
+import type { Dialogs } from "../../hooks/useDialogs";
 import type { TreeView } from "../../hooks/useTreeView";
-import type { Theme } from "../../types";
+import { MapIsland } from "./MapIsland";
 
 const nodeTypes = { character: CharacterNode };
-const edgeTypes = { relationship: RelationshipEdge };
+const edgeTypes = { relationship: RelationshipEdge, family: FamilyEdge };
 
 export type FlowInstance = ReactFlowInstance<Node<CharacterNodeData>, Edge>;
 
-/** The tree field: cards, lines, mini map, legend and the empty state. */
+/** Room for «Show all» so the cards do not end up under the floating panels. */
+export function fitPadding() {
+  const inspector = document.querySelector(".tb-inspector")?.getBoundingClientRect().width ?? 0;
+  return { top: "96px", bottom: "120px", left: "32px", right: `${inspector ? inspector + 48 : 32}px` } as const;
+}
+
+/** The tree field across the whole window: cards, lines, the map island and the empty state. */
 export function TreeCanvas({
   app,
   view,
-  theme,
+  dialogs,
   flowInstance,
   onAddCharacter,
-  onAddLink,
+  onShowAll,
+  onAutoLayout,
 }: {
   app: ProjectApi;
   view: TreeView;
-  theme: Theme;
+  dialogs: Dialogs;
   flowInstance: RefObject<FlowInstance | null>;
   onAddCharacter: () => void;
-  onAddLink: () => void;
+  onShowAll: () => void;
+  onAutoLayout: () => void;
 }) {
   const { t } = useI18n();
   const { project } = app;
@@ -71,42 +80,36 @@ export function TreeCanvas({
   );
 
   return (
-    <div className="flow-wrap">
-      <ReactFlow
-        nodes={localNodes}
-        edges={view.edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onInit={(instance) => {
-          flowInstance.current = instance;
-        }}
-        onNodesChange={onNodesChange}
-        onNodeClick={(_, node) => view.setSelectedId(node.id)}
-        onNodeDragStop={(_, node) => app.updatePosition(node.id, node.position, true)}
-        onPaneClick={() => view.setSelectedId(undefined)}
-        minZoom={0.12}
-        maxZoom={1.8}
-        defaultViewport={{ x: 40, y: 25, zoom: 0.78 }}
-        proOptions={{ hideAttribution: true }}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        ariaLabelConfig={graphAriaLabels}
-        selectionOnDrag
-        panOnScroll
-        deleteKeyCode={null}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
-        <MiniMap
-          pannable
-          zoomable
-          className="mini-map"
-          nodeColor={(node) => (node.data as CharacterNodeData).character.color}
-          maskColor={theme === "dark" ? "rgba(22,11,24,.74)" : "rgba(232,238,241,.72)"}
-        />
-        <Controls showInteractive={false} position="bottom-left" />
-      </ReactFlow>
+    <ReactFlowProvider>
+      <div className="tb-field tb-canvas flow-wrap">
+        <ReactFlow
+          nodes={localNodes}
+          edges={view.edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onInit={(instance) => {
+            flowInstance.current = instance;
+          }}
+          onNodesChange={onNodesChange}
+          onNodeClick={(_, node) => view.setSelectedId(node.id)}
+          onNodeDragStop={(_, node) => app.updatePosition(node.id, node.position, true)}
+          onPaneClick={() => view.setSelectedId(undefined)}
+          minZoom={0.12}
+          maxZoom={1.8}
+          defaultViewport={{ x: 40, y: 25, zoom: 0.78 }}
+          proOptions={{ hideAttribution: true }}
+          fitView
+          fitViewOptions={{ padding: fitPadding() }}
+          ariaLabelConfig={graphAriaLabels}
+          selectionOnDrag
+          panOnScroll
+          deleteKeyCode={null}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={22} size={2.6} />
+        </ReactFlow>
+      </div>
       {!view.visiblePeople.length && (
-        <div className="canvas-empty">
+        <div className="tb-island canvas-empty">
           <Search size={26} />
           <h3>{project.characters.length ? t("emptySearch") : t("emptyTree")}</h3>
           <p>{project.characters.length ? t("emptySearchHint") : t("emptyTreeHint")}</p>
@@ -125,18 +128,14 @@ export function TreeCanvas({
           </button>
         </div>
       )}
-      <div className="legend">
-        <span className="eyebrow">{t("legend")}</span>
-        <div>
-          <i className="line family" /> {t("family")}
-        </div>
-        <div>
-          <i className="line pair" /> {t("relations")}
-        </div>
-      </div>
-      <button className="floating-link" onClick={onAddLink} disabled={project.characters.length < 1}>
-        <Link2 size={17} /> {t("addConnection")}
-      </button>
-    </div>
+      <MapIsland
+        view={view}
+        dialogs={dialogs}
+        total={project.characters.length}
+        loadError={app.loadError}
+        onShowAll={onShowAll}
+        onAutoLayout={onAutoLayout}
+      />
+    </ReactFlowProvider>
   );
 }

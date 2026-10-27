@@ -71,7 +71,7 @@ export function Modal({
         ref={dialog}
         onKeyDown={onKeyDown}
         tabIndex={-1}
-        className={`modal ${wide ? "modal-wide" : ""}`}
+        className={`tb-modal modal ${wide ? "modal-wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}

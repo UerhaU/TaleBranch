@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { MarkerType, type Edge, type Node } from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
 import type { CharacterNodeData } from "../components/CharacterNode";
 import { useI18n } from "../i18n";
 import { inferPetOwner } from "../lib/pets";
@@ -87,24 +87,31 @@ export function useTreeView(project: Project) {
   );
 
   const edges = useMemo<Edge[]>(() => {
-    const familyEdges: Edge[] = showParents
-      ? project.parentLinks
-          .filter((link) => link.active && visibleIds.has(link.parentId) && visibleIds.has(link.childId))
-          .map((link) => ({
-            id: link.id,
-            source: link.parentId,
-            target: link.childId,
-            type: "smoothstep",
-            className: "family-edge",
-            style: { stroke: "#A6BCC9", strokeWidth: 2 },
-          }))
+    const familyLinks = showParents
+      ? project.parentLinks.filter(
+          (link) => link.active && visibleIds.has(link.parentId) && visibleIds.has(link.childId),
+        )
       : [];
+    const parentsOf = new Map<string, string[]>();
+    familyLinks.forEach((link) => parentsOf.set(link.childId, [...(parentsOf.get(link.childId) ?? []), link.parentId]));
+    const familyEdges: Edge[] = familyLinks.map((link) => {
+      const parents = parentsOf.get(link.childId)!;
+      const coParentId = parents.length === 2 ? parents.find((id) => id !== link.parentId) : undefined;
+      return {
+        id: link.id,
+        source: link.parentId,
+        target: link.childId,
+        type: "family",
+        className: "family-edge",
+        data: { coParentId, drawsShared: parents[0] === link.parentId },
+        style: { stroke: "var(--tb-kin-line)", strokeWidth: 2.2 },
+      };
+    });
     const personalEdges: Edge[] = showRelations
       ? project.pairLinks
           .filter((pair) => pair.labels.length && visibleIds.has(pair.aId) && visibleIds.has(pair.bId))
           .map((pair) => {
-            const color = pair.labels.find((label) => label.active)?.color ?? pair.labels[0].color;
-            const marker = { type: MarkerType.ArrowClosed, color };
+            const shown = pair.labels.find((label) => label.active) ?? pair.labels[0];
             return {
               id: `relationship:${pair.id}`,
               source: pair.aId,
@@ -118,19 +125,11 @@ export function useTreeView(project: Project) {
                       `${valueLabel(label.name)}${label.publicity === "secret" ? t("secretSuffix") : ""}${!label.active ? ` · ${t("endedConnection")}` : ""}`,
                   )
                   .join(" / "),
+                icon: shown.icon,
+                ended: pair.labels.every((label) => !label.active),
+                toSource: pair.labels.some((label) => label.direction === "b-to-a"),
+                toTarget: pair.labels.some((label) => label.direction === "a-to-b"),
               },
-              style: {
-                stroke: color,
-                strokeWidth: 2,
-                strokeOpacity: 0.35,
-                strokeDasharray:
-                  pair.labels.every((label) => !label.active) ||
-                  pair.labels.some((label) => label.publicity === "secret")
-                    ? "5 5"
-                    : undefined,
-              },
-              markerStart: pair.labels.some((label) => label.direction === "b-to-a") ? marker : undefined,
-              markerEnd: pair.labels.some((label) => label.direction === "a-to-b") ? marker : undefined,
               ariaLabel: pair.labels.map((label) => valueLabel(label.name)).join(", "),
             };
           })

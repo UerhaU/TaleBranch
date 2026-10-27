@@ -106,7 +106,7 @@ export function Inspector({
 
   if (!character)
     return (
-      <aside className="inspector inspector-empty">
+      <aside className="tb-inspector inspector inspector-empty">
         <div className="empty-orbit">
           <CircleUserRound size={28} />
         </div>
@@ -144,7 +144,7 @@ export function Inspector({
   };
 
   return (
-    <aside className="inspector">
+    <aside className="tb-inspector inspector">
       <header className="inspector-header">
         <div className="profile-portrait" style={{ "--profile-accent": character.color } as React.CSSProperties}>
           {currentStage?.photo?.edited ? <img src={currentStage.photo.edited} alt="" /> : <span>{initials}</span>}

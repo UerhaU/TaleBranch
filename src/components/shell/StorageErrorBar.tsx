@@ -3,12 +3,12 @@ import { downloadRecoveryData } from "../../lib/storage";
 import { storageFailureText } from "../../lib/storageDiagnostics";
 import type { ProjectApi } from "../../hooks/projectApi";
 
-/** Red bar under the top bar when the dynasty cannot be loaded or saved. */
+/** Red island under the top capsule when the dynasty cannot be loaded or saved. */
 export function StorageErrorBar({ app, onExport }: { app: ProjectApi; onExport: () => void }) {
   const { t } = useI18n();
   if (!(app.loadError || app.saveStatus === "error" || app.closeGuardError)) return null;
   return (
-    <div className="storage-error" role="alert">
+    <div className="tb-island tb-error-banner storage-error" role="alert">
       <span>
         {app.saveStatus === "error" && app.saveError && !app.loadError
           ? app.folderName

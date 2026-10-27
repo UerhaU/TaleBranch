@@ -1,54 +1,95 @@
-import { FolderOpen, GitBranch, Plus, Upload } from "lucide-react";
+import type { CSSProperties } from "react";
+import { FolderOpen, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import { TreeIcon } from "../TreeIcon";
 import { useI18n } from "../../i18n";
 import { supportsDynastyFolders } from "../../lib/folderStorage";
 import { listProjects } from "../../lib/storage";
 import type { DynastyFiles } from "../../hooks/useDynastyFiles";
 
+const recentColors = ["blue", "violet", "rose", "amber", "teal", "sky", "coral", "plum"].map(
+  (name) => `var(--tb-p-${name})`,
+);
+
 /** Shown while no dynasty is open. */
 export function StartScreen({ files }: { files: DynastyFiles }) {
   const { t } = useI18n();
+  const browserProjects = listProjects();
+  const action = (Icon: typeof Sparkles, title: string, hint: string, onClick: () => void, primary = false) => (
+    <button className={`tb-start-btn ${primary ? "primary" : ""}`} aria-label={title} title={hint} onClick={onClick}>
+      <span className="tb-start-icon">
+        <Icon size={20} />
+      </span>
+      <b>{title}</b>
+      <small>{hint}</small>
+    </button>
+  );
   return (
-    <section className="dynasty-welcome">
-      <GitBranch size={36} />
-      <h1>{t("noDynastyTitle")}</h1>
-      <p>{t("noDynastyHint")}</p>
-      <p>{t("folderHint")}</p>
-      <div className="dynasty-welcome-actions">
-        <button className="button primary" onClick={files.startNewProject}>
-          <Plus size={16} /> {t("newProject")}
-        </button>
-        <button className="button subtle" onClick={() => void files.workWithFolder("open")}>
-          <FolderOpen size={16} /> {t("openDynastyFolder")}
-        </button>
-        <button className="button subtle" onClick={files.openImportPicker}>
-          <Upload size={16} /> {t("import")}
-        </button>
+    <>
+      <div className="tb-island tb-start-top">
+        <span className="tb-dyn-btn">
+          <span className="tb-logo">
+            <TreeIcon size={18} />
+          </span>
+          <span className="tb-dyn-name">{t("appName")}</span>
+        </span>
       </div>
-      {!supportsDynastyFolders() && <p role="note">{t("folderUnsupported")}</p>}
-      {!!files.recentFolders.length && (
-        <div className="folder-recents">
+      <main className="tb-start dynasty-welcome">
+        <section className="tb-island tb-start-card">
+          <span className="tb-logo big">
+            <TreeIcon size={32} />
+          </span>
+          <h1>{t("noDynastyTitle")}</h1>
+          <p>{t("noDynastyHint")}</p>
+          <div className="tb-start-actions">
+            {action(Sparkles, t("newProject"), t("createDynastyHint"), files.startNewProject, true)}
+            {action(FolderOpen, t("openDynastyFolder"), t("openDynastyHint"), () => void files.workWithFolder("open"))}
+            {action(Upload, t("import"), t("importDynastyHint"), files.openImportPicker)}
+          </div>
+          <p className="tb-start-note">{t("folderHint")}</p>
+          {!supportsDynastyFolders() && (
+            <p className="tb-start-note" role="note">
+              {t("folderUnsupported")}
+            </p>
+          )}
+        </section>
+        <section className="tb-island tb-recent-card">
           <h2>{t("recentProjects")}</h2>
-          {files.recentFolders.map((item) => (
+          {!files.recentFolders.length && !browserProjects.length && (
+            <p className="tb-recent-empty">{t("recentEmpty")}</p>
+          )}
+          {files.recentFolders.map((item, index) => (
             <button
-              className="button subtle"
+              className="tb-recent"
               key={item.id}
               onClick={() => void files.workWithFolder("open", item.directory)}
             >
-              <FolderOpen size={16} /> {item.name} · {item.directory.name}
+              <span className="tb-recent-icon" style={{ "--pc": recentColors[index % 8] } as CSSProperties}>
+                <TreeIcon size={20} />
+              </span>
+              <span className="tb-recent-text">
+                <span className="tb-recent-name">{item.name}</span>
+                <small>{item.directory.name}</small>
+              </span>
             </button>
           ))}
-        </div>
-      )}
-      {!!listProjects().length && (
-        <div className="folder-recents">
-          <h2>{t("browserDynasties")}</h2>
-          {listProjects().map((item) => (
-            <button className="button subtle" key={item.id} onClick={() => void files.switchProject(item.id)}>
-              {item.name}
+          {!!browserProjects.length && <h3>{t("browserDynasties")}</h3>}
+          {browserProjects.map((item, index) => (
+            <button className="tb-recent" key={item.id} onClick={() => void files.switchProject(item.id)}>
+              <span className="tb-recent-icon" style={{ "--pc": recentColors[(index + 3) % 8] } as CSSProperties}>
+                <TreeIcon size={20} />
+              </span>
+              <span className="tb-recent-text">
+                <span className="tb-recent-name">{item.name}</span>
+                <small>{t("charactersCount", { count: item.characterCount })}</small>
+              </span>
             </button>
           ))}
-        </div>
-      )}
-    </section>
+        </section>
+        <p className="tb-offline">
+          <ShieldCheck size={18} />
+          {t("offline")}
+        </p>
+      </main>
+    </>
   );
 }

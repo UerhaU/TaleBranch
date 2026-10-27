@@ -7,7 +7,9 @@ export function useTheme() {
     readPreference("dynasty-chronicles:theme") === "light" ? "light" : "dark",
   );
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    // Built-in theme "default"; the light or dark variant is chosen separately.
+    document.documentElement.dataset.theme = "default";
+    document.documentElement.dataset.mode = theme;
     writePreference("dynasty-chronicles:theme", theme);
   }, [theme]);
   return [theme, setTheme] as const;

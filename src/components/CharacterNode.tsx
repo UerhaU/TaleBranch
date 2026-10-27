@@ -1,7 +1,10 @@
+import type { CSSProperties, ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Bone, CircleUserRound, Ghost, PawPrint, Skull } from "lucide-react";
 import type { Character } from "../types";
 import { useI18n } from "../i18n";
+import { CatalogValue } from "./CatalogDisplay";
+import { displayColor } from "../lib/colors";
 
 export type CharacterNodeData = {
   character: Character;
@@ -25,52 +28,77 @@ function initials(character: Character) {
     .toUpperCase();
 }
 
+/** Round portrait: photo of the current life stage or initials on the character's color. */
+export function Avatar({
+  character,
+  size,
+  ring = false,
+  children,
+}: {
+  character: Character;
+  size: number;
+  ring?: boolean;
+  children?: ReactNode;
+}) {
+  const photo = activePhoto(character);
+  return (
+    <span
+      className={`tb-avatar ${ring ? "tb-avatar-ring" : ""}`}
+      style={{ "--pc": displayColor(character.color), "--size": `${size}px` } as CSSProperties}
+    >
+      <span className="tb-avatar-in">
+        {photo ? (
+          <img src={photo} alt="" draggable={false} />
+        ) : (
+          initials(character) ||
+          (character.type === "pet" ? <PawPrint size={size * 0.4} /> : <CircleUserRound size={size * 0.4} />)
+        )}
+      </span>
+      {children}
+    </span>
+  );
+}
+
+const statusIcons = { dead: Skull, missing: Ghost, unknown: Bone };
+
 export function CharacterNode({ data }: NodeProps) {
   const { t } = useI18n();
   const nodeData = data as CharacterNodeData;
   const { character, pets, onOpen } = nodeData;
-  const photo = activePhoto(character);
+  const StatusIcon = character.status !== "alive" ? statusIcons[character.status] : undefined;
 
   return (
     <article
-      className={`character-node portrait-node portrait-status-${character.status} ${nodeData.selected ? "is-selected" : ""}`}
-      style={{ "--node-accent": character.color } as React.CSSProperties}
+      className={`tb-card character-node status-${character.status} ${nodeData.selected ? "is-selected" : ""}`}
+      style={{ "--pc": displayColor(character.color) } as CSSProperties}
       title={character.displayName}
       aria-label={character.displayName}
       onDoubleClick={() => onOpen(character.id)}
     >
       <Handle type="target" position={Position.Top} className="node-handle" isConnectable={false} />
-      <div className="main-portrait">
-        {photo ? (
-          <img src={photo} alt="" draggable={false} />
-        ) : (
-          <span>{initials(character) || <CircleUserRound />}</span>
-        )}
-        {character.status !== "alive" && (
-          <i className="portrait-status" title={t(character.status)}>
-            {character.status === "dead" ? (
-              <Skull size={13} />
-            ) : character.status === "missing" ? (
-              <Ghost size={13} />
-            ) : (
-              <Bone size={13} />
-            )}
+      <Avatar character={character} size={54} ring>
+        {StatusIcon && (
+          <i className="tb-avatar-mark" title={t(character.status)}>
+            <StatusIcon size={12} />
           </i>
         )}
-      </div>
-      <div className="pet-orbit" aria-label={t("petsOf", { name: character.displayName })}>
         {pets.map((pet, index) => {
-          const angle = -45 + index * (360 / Math.max(pets.length, 1));
-          const radius = 58;
-          const x = Math.cos((angle * Math.PI) / 180) * radius;
-          const y = Math.sin((angle * Math.PI) / 180) * radius;
+          // The first pet sits top right, the others go around the portrait.
+          const angle = ((-45 + index * (360 / pets.length)) * Math.PI) / 180;
+          const radius = 36;
           const petPhoto = activePhoto(pet);
           return (
             <button
               type="button"
               key={pet.id}
-              className={`pet-portrait ${nodeData.selectedPetId === pet.id ? "is-selected" : ""}`}
-              style={{ "--pet-x": `${x}px`, "--pet-y": `${y}px`, "--pet-accent": pet.color } as React.CSSProperties}
+              className={`tb-pet ${nodeData.selectedPetId === pet.id ? "is-selected" : ""}`}
+              style={
+                {
+                  "--pet-x": `${(Math.cos(angle) * radius).toFixed(1)}px`,
+                  "--pet-y": `${(Math.sin(angle) * radius).toFixed(1)}px`,
+                  "--pet-accent": displayColor(pet.color),
+                } as CSSProperties
+              }
               aria-label={`${t("pet")}: ${pet.displayName}`}
               title={pet.displayName}
               onClick={(event) => {
@@ -81,7 +109,7 @@ export function CharacterNode({ data }: NodeProps) {
               {petPhoto ? (
                 <img src={petPhoto} alt="" draggable={false} />
               ) : (
-                <span>{initials(pet) || <PawPrint size={14} />}</span>
+                <span>{initials(pet) || <PawPrint size={12} />}</span>
               )}
               <i>
                 <PawPrint size={9} />
@@ -89,6 +117,17 @@ export function CharacterNode({ data }: NodeProps) {
             </button>
           );
         })}
+      </Avatar>
+      <div className="tb-card-text">
+        <strong className="tb-card-name">{character.displayName}</strong>
+        <span className="tb-card-stage">
+          <CatalogValue
+            kind="ages"
+            value={character.lifeStage}
+            character={character}
+            suffix={character.status !== "alive" ? t(character.status) : undefined}
+          />
+        </span>
       </div>
       <Handle type="source" position={Position.Bottom} className="node-handle" isConnectable={false} />
     </article>

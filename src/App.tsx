@@ -11,14 +11,13 @@ import { autoLayout, hasAncestorCycle } from "./lib/project";
 import { inferPetOwner } from "./lib/pets";
 import type { Character } from "./types";
 import { CatalogBrowser } from "./components/CatalogBrowser";
-import { CanvasToolbar } from "./components/shell/CanvasToolbar";
+import { Dock } from "./components/shell/Dock";
 import { InspectorPanel } from "./components/shell/InspectorPanel";
 import { FolderErrorBar, Toast } from "./components/shell/Notices";
-import { Sidebar } from "./components/shell/Sidebar";
 import { StartScreen } from "./components/shell/StartScreen";
 import { StorageErrorBar } from "./components/shell/StorageErrorBar";
 import { Topbar } from "./components/shell/Topbar";
-import { TreeCanvas, type FlowInstance } from "./components/shell/TreeCanvas";
+import { TreeCanvas, fitPadding, type FlowInstance } from "./components/shell/TreeCanvas";
 import { AboutDialog } from "./components/dialogs/AboutDialog";
 import { CharacterDialogs } from "./components/dialogs/CharacterDialogs";
 import { CharacterListDialog } from "./components/dialogs/CharacterListDialog";
@@ -59,7 +58,7 @@ export default function App() {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
-      flowInstance.current?.fitView({ duration: 350, padding: 0.16, maxZoom: 1 });
+      flowInstance.current?.fitView({ duration: 350, padding: fitPadding(), maxZoom: 1 });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [project.id, app.hasProject]);
@@ -69,7 +68,7 @@ export default function App() {
     app.commit((draft) => {
       draft.positions = positions;
     });
-    window.setTimeout(() => flowInstance.current?.fitView({ duration: 500, padding: 0.18 }), 50);
+    window.setTimeout(() => flowInstance.current?.fitView({ duration: 500, padding: fitPadding() }), 50);
     notify(t(hasAncestorCycle(project) ? "layoutCycleHint" : "layoutDone"));
   };
 
@@ -115,9 +114,47 @@ export default function App() {
     }
   };
 
+  const hasInspector = app.hasProject && Boolean(selected);
   return (
-    <div className="app-shell" inert={files.folderWorking || app.busy}>
-      <Sidebar
+    <div className={`tb-app app-shell ${hasInspector ? "has-inspector" : ""}`} inert={files.folderWorking || app.busy}>
+      {!app.hasProject ? (
+        <>
+          <div className="tb-field" />
+          <StartScreen files={files} />
+        </>
+      ) : (
+        <>
+          <TreeCanvas
+            app={app}
+            view={view}
+            dialogs={dialogs}
+            flowInstance={flowInstance}
+            onAddCharacter={() => dialogs.open("addCharacter", { type: "sim" })}
+            onShowAll={() => flowInstance.current?.fitView({ duration: 400, padding: fitPadding() })}
+            onAutoLayout={runAutoLayout}
+          />
+          <Topbar
+            app={app}
+            files={files}
+            dialogs={dialogs}
+            view={view}
+            searchInput={searchInput}
+            onPick={focusCharacter}
+            onDeleteDynasty={requestDeleteDynasty}
+          />
+          <StorageErrorBar app={app} onExport={files.exportProject} />
+          {selected && (
+            <InspectorPanel
+              app={app}
+              selected={selected}
+              dialogs={dialogs}
+              notify={notify}
+              onClose={() => view.setSelectedId(undefined)}
+            />
+          )}
+        </>
+      )}
+      <Dock
         hasProject={app.hasProject}
         loadError={app.loadError}
         trashCount={project.trashedCharacters.length}
@@ -125,58 +162,15 @@ export default function App() {
         theme={theme}
         onTheme={setTheme}
       />
+      <input
+        ref={files.importInput}
+        type="file"
+        accept=".dynasty-tree,application/json"
+        hidden
+        onChange={(event) => void files.handleImport(event.target.files?.[0])}
+      />
 
       {dialogs.state.catalog && <CatalogBrowser onClose={() => dialogs.close("catalog")} />}
-      <main className="workspace">
-        {!app.hasProject ? (
-          <StartScreen files={files} />
-        ) : (
-          <>
-            <Topbar
-              app={app}
-              files={files}
-              dialogs={dialogs}
-              theme={theme}
-              onAutoLayout={runAutoLayout}
-              onDeleteDynasty={requestDeleteDynasty}
-            />
-            <StorageErrorBar app={app} onExport={files.exportProject} />
-            <CanvasToolbar
-              view={view}
-              dialogs={dialogs}
-              total={project.characters.length}
-              searchInput={searchInput}
-              onShowAll={() => flowInstance.current?.fitView({ duration: 400, padding: 0.18 })}
-            />
-            <div className={`content-row ${selected ? "with-inspector" : ""}`}>
-              <TreeCanvas
-                app={app}
-                view={view}
-                theme={theme}
-                flowInstance={flowInstance}
-                onAddCharacter={() => dialogs.open("addCharacter")}
-                onAddLink={() => dialogs.open("link", { kind: "parent" })}
-              />
-              {selected && (
-                <InspectorPanel
-                  app={app}
-                  selected={selected}
-                  dialogs={dialogs}
-                  notify={notify}
-                  onClose={() => view.setSelectedId(undefined)}
-                />
-              )}
-            </div>
-          </>
-        )}
-        <input
-          ref={files.importInput}
-          type="file"
-          accept=".dynasty-tree,application/json"
-          hidden
-          onChange={(event) => void files.handleImport(event.target.files?.[0])}
-        />
-      </main>
 
       <CharacterDialogs
         app={app}
