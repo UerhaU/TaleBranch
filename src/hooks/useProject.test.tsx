@@ -574,3 +574,92 @@ describe("autosave across project transitions", () => {
     expect(localStorage.getItem("dynasty-chronicles:project:project_demo")).toBe("broken");
   });
 });
+
+describe("lightweight undo history", () => {
+  const photo = (label: string) => ({
+    original: `data:image/png;base64,${label}-original`,
+    edited: `data:image/png;base64,${label}-edited`,
+    updatedAt: "2026-10-27T00:00:00.000Z",
+  });
+  const withPhotos = () => {
+    mount();
+    act(() =>
+      app.commit((draft) => {
+        draft.characters.forEach((character, index) => {
+          if (character.stages[0]) character.stages[0].photo = photo(String(index));
+        });
+      }),
+    );
+    return app.project;
+  };
+
+  it("shares unchanged characters and photos between history steps", () => {
+    const before = withPhotos();
+    const [edited, ...others] = before.characters;
+    expect(others.length).toBeGreaterThan(0);
+    act(() => {
+      expect(app.updateCharacter(edited.id, { notes: "Новая заметка" })).toBe(true);
+    });
+    const after = app.project;
+    expect(after).not.toBe(before);
+    expect(after.characters[0]).not.toBe(edited);
+    expect(after.characters[0].notes).toBe("Новая заметка");
+    expect(after.characters[0].stages).toBe(edited.stages);
+    others.forEach((character, index) => {
+      expect(after.characters[index + 1]).toBe(character);
+      expect(after.characters[index + 1].stages[0]?.photo).toBe(character.stages[0]?.photo);
+    });
+    expect(after.parentLinks).toBe(before.parentLinks);
+    expect(after.pairLinks).toBe(before.pairLinks);
+    expect(after.positions).toBe(before.positions);
+  });
+
+  it("freezes history so earlier steps cannot be changed by accident", () => {
+    const before = withPhotos();
+    expect(Object.isFrozen(before)).toBe(true);
+    expect(Object.isFrozen(before.characters[0])).toBe(true);
+    expect(() => {
+      (before.characters[0] as { notes: string }).notes = "изменено";
+    }).toThrow();
+  });
+
+  it("restores the exact previous and next states on undo and redo", () => {
+    const before = withPhotos();
+    const snapshot = structuredClone(before);
+    const id = before.characters[1].id;
+    act(() => {
+      app.updateCharacter(id, { notes: "Шаг 1" });
+    });
+    const first = app.project;
+    act(() => app.deleteCharacter(id));
+    const second = app.project;
+    expect(second.characters.some((item) => item.id === id)).toBe(false);
+
+    act(() => app.undo());
+    expect(app.project).toBe(first);
+    act(() => app.undo());
+    expect(app.project).toBe(before);
+    expect(app.project).toEqual(snapshot);
+    act(() => app.redo());
+    expect(app.project).toBe(first);
+    act(() => app.redo());
+    expect(app.project).toBe(second);
+    expect(app.canRedo).toBe(false);
+  });
+
+  it("keeps at most 50 undo steps", () => {
+    mount();
+    const id = app.project.characters[0].id;
+    for (let step = 1; step <= 60; step++)
+      act(() => {
+        app.updateCharacter(id, { notes: `Шаг ${step}` });
+      });
+    let undone = 0;
+    while (app.canUndo) {
+      act(() => app.undo());
+      undone++;
+    }
+    expect(undone).toBe(50);
+    expect(app.project.characters[0].notes).toBe("Шаг 10");
+  });
+});

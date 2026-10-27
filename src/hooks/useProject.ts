@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { produce } from "immer";
 import type { Character, HistoryState, PairLink, ParentLink, Project } from "../types";
-import { cloneProject } from "../lib/project";
 import {
   deleteStoredProject,
   listProjects,
@@ -192,9 +192,12 @@ export function useProject() {
   const commit = useCallback((recipe: (draft: Project) => void) => {
     setHistory((current) => {
       if (!active.current || transitioning.current) return current;
-      const next = cloneProject(current.present);
-      recipe(next);
-      next.updatedAt = new Date().toISOString();
+      // Only changed branches are copied; untouched characters and photos are shared
+      // with earlier history entries, which Immer freezes against accidental edits.
+      const next = produce(current.present, (draft) => {
+        recipe(draft);
+        draft.updatedAt = new Date().toISOString();
+      });
       return {
         past: [...current.past.slice(-49), current.present],
         present: next,
@@ -353,9 +356,10 @@ export function useProject() {
       if (transitioning.current) return false;
       if (blocked.current || !active.current) return false;
       if (!current.current.trashedCharacters.some((item) => ids.includes(item.id))) return false;
-      const next = cloneProject(current.current);
-      permanentlyDeleteTrashedCharacters(next, ids);
-      next.updatedAt = new Date().toISOString();
+      const next = produce(current.current, (draft) => {
+        permanentlyDeleteTrashedCharacters(draft, ids);
+        draft.updatedAt = new Date().toISOString();
+      });
       if (folderRef.current) {
         transitioning.current = true;
         destructive.current = true;

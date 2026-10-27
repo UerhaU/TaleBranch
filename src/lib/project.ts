@@ -261,10 +261,6 @@ export function createDemoProject(): Project {
   };
 }
 
-export function cloneProject(project: Project): Project {
-  return structuredClone(project);
-}
-
 export function normalizePair(aId: string, bId: string): [string, string] {
   return aId.localeCompare(bId) <= 0 ? [aId, bId] : [bId, aId];
 }

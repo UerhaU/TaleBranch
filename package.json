@@ -20,6 +20,7 @@
     "@tauri-apps/api": "2.12.4",
     "@xyflow/react": "^12.8.2",
     "html-to-image": "^1.11.13",
+    "immer": "11.1.4",
     "lucide-react": "^0.468.0",
     "lz-string": "1.5.0",
     "react": "^19.1.1",
