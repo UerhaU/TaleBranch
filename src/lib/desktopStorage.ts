@@ -1,11 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { DynastyDirectory, RecentFolder } from "./folderStorage";
 
-interface DirectoryInfo { path: string; name: string }
-interface FileContents { text: string; revision: string }
+interface DirectoryInfo {
+  path: string;
+  name: string;
+}
+interface FileContents {
+  text: string;
+  revision: string;
+}
 async function native<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  try { return await invoke<T>(command, args); }
-  catch (error) {
+  try {
+    return await invoke<T>(command, args);
+  } catch (error) {
     if (error && typeof error === "object" && "message" in error) {
       const details = error as { name?: string; message: string };
       throw new DOMException(details.message, details.name ?? "Error");
@@ -18,7 +25,10 @@ async function native<T>(command: string, args?: Record<string, unknown>): Promi
 export class DesktopDirectory implements DynastyDirectory {
   readonly displayPath: string;
   readonly name: string;
-  constructor(info: DirectoryInfo) { this.displayPath = info.path; this.name = info.name; }
+  constructor(info: DirectoryInfo) {
+    this.displayPath = info.path;
+    this.name = info.name;
+  }
   private io<T>(op: string, args: Record<string, unknown> = {}) {
     return native<T>("desktop_io", { request: { op, directory: this.displayPath, ...args } });
   }
@@ -28,30 +38,47 @@ export class DesktopDirectory implements DynastyDirectory {
   async *values() {
     yield* await this.io<Array<{ name: string }>>("list");
   }
-  async removeEntry(name: string) { await this.io("remove", { name }); }
-  async deleteDynasty(expected: string) { await this.io("deleteDynasty", { expected }); }
-  async queryPermission(): Promise<PermissionState> { return "granted"; }
-  async requestPermission(): Promise<PermissionState> { return "granted"; }
-  async isSameEntry(other: DynastyDirectory) { return other instanceof DesktopDirectory && this.displayPath === other.displayPath; }
+  async removeEntry(name: string) {
+    await this.io("remove", { name });
+  }
+  async deleteDynasty(expected: string) {
+    await this.io("deleteDynasty", { expected });
+  }
+  async queryPermission(): Promise<PermissionState> {
+    return "granted";
+  }
+  async requestPermission(): Promise<PermissionState> {
+    return "granted";
+  }
+  async isSameEntry(other: DynastyDirectory) {
+    return other instanceof DesktopDirectory && this.displayPath === other.displayPath;
+  }
   async getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle> {
     if (name !== "dynasty.json") throw new Error("UNMANAGED_FILE");
     await this.io("file", { create: options?.create ?? false });
     return {
-      kind: "file", name,
+      kind: "file",
+      name,
       getFile: async () => {
         const contents = await this.io<FileContents>("read");
         return new File([contents.text], name, { type: "application/json" });
       },
       createWritable: async () => {
         const previous = await this.io<FileContents>("read");
-        let contents = ""; let aborted = false;
+        let contents = "";
+        let aborted = false;
         return {
-          write: async (text: string) => { contents = text; },
+          write: async (text: string) => {
+            contents = text;
+          },
           close: async () => {
             if (aborted) throw new DOMException("Write aborted", "AbortError");
             await this.io("write", { text: contents, expected: previous.revision });
           },
-          abort: async () => { aborted = true; contents = ""; },
+          abort: async () => {
+            aborted = true;
+            contents = "";
+          },
         };
       },
     } as unknown as FileSystemFileHandle;
@@ -65,7 +92,7 @@ export async function pickDesktopDirectory(): Promise<DesktopDirectory> {
 }
 export async function recentDesktopFolders(): Promise<RecentFolder[]> {
   const recent = await native<Array<{ id: string; name: string; directory: DirectoryInfo }>>("desktop_recent_folders");
-  return recent.map(item => ({ ...item, directory: new DesktopDirectory(item.directory) }));
+  return recent.map((item) => ({ ...item, directory: new DesktopDirectory(item.directory) }));
 }
 export async function lastDesktopFolder(): Promise<RecentFolder | undefined> {
   const entry = await native<{ id: string; name: string; directory: DirectoryInfo } | null>("desktop_last_folder");

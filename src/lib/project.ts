@@ -145,10 +145,50 @@ export function createDemoProject(): Project {
   });
 
   const parentLinks: ParentLink[] = [
-    { id: "parent_1", parentId: elena.id, childId: vera.id, kind: "Биологическое", parentRole: "Мама", childRole: "Дочь", biological: "yes", active: true, comment: "" },
-    { id: "parent_2", parentId: mark.id, childId: vera.id, kind: "Биологическое", parentRole: "Папа", childRole: "Дочь", biological: "yes", active: true, comment: "" },
-    { id: "parent_3", parentId: vera.id, childId: nika.id, kind: "Биологическое", parentRole: "Мама", childRole: "Дочь", biological: "yes", active: true, comment: "" },
-    { id: "parent_4", parentId: leon.id, childId: nika.id, kind: "Биологическое", parentRole: "Папа", childRole: "Дочь", biological: "yes", active: true, comment: "" },
+    {
+      id: "parent_1",
+      parentId: elena.id,
+      childId: vera.id,
+      kind: "Биологическое",
+      parentRole: "Мама",
+      childRole: "Дочь",
+      biological: "yes",
+      active: true,
+      comment: "",
+    },
+    {
+      id: "parent_2",
+      parentId: mark.id,
+      childId: vera.id,
+      kind: "Биологическое",
+      parentRole: "Папа",
+      childRole: "Дочь",
+      biological: "yes",
+      active: true,
+      comment: "",
+    },
+    {
+      id: "parent_3",
+      parentId: vera.id,
+      childId: nika.id,
+      kind: "Биологическое",
+      parentRole: "Мама",
+      childRole: "Дочь",
+      biological: "yes",
+      active: true,
+      comment: "",
+    },
+    {
+      id: "parent_4",
+      parentId: leon.id,
+      childId: nika.id,
+      kind: "Биологическое",
+      parentRole: "Папа",
+      childRole: "Дочь",
+      biological: "yes",
+      active: true,
+      comment: "",
+    },
   ];
 
   const pairLinks: PairLink[] = [
@@ -156,15 +196,44 @@ export function createDemoProject(): Project {
       id: "pair_1",
       aId: elena.id,
       bId: mark.id,
-      labels: [{ id: "rel_1", name: "Супруги", color: "#F6E0B6", icon: "rings", direction: "mutual", active: false, publicity: "open", comment: "До смерти Марка" }],
+      labels: [
+        {
+          id: "rel_1",
+          name: "Супруги",
+          color: "#F6E0B6",
+          icon: "rings",
+          direction: "mutual",
+          active: false,
+          publicity: "open",
+          comment: "До смерти Марка",
+        },
+      ],
     },
     {
       id: "pair_2",
       aId: leon.id,
       bId: vera.id,
       labels: [
-        { id: "rel_2", name: "Супруги", color: "#F6E0B6", icon: "rings", direction: "mutual", active: true, publicity: "open", comment: "" },
-        { id: "rel_3", name: "Лучшие друзья", color: "#8DAAB9", icon: "spark", direction: "mutual", active: true, publicity: "open", comment: "" },
+        {
+          id: "rel_2",
+          name: "Супруги",
+          color: "#F6E0B6",
+          icon: "rings",
+          direction: "mutual",
+          active: true,
+          publicity: "open",
+          comment: "",
+        },
+        {
+          id: "rel_3",
+          name: "Лучшие друзья",
+          color: "#8DAAB9",
+          icon: "spark",
+          direction: "mutual",
+          active: true,
+          publicity: "open",
+          comment: "",
+        },
       ],
     },
   ];
@@ -223,10 +292,12 @@ export function autoLayout(project: Project): Record<string, { x: number; y: num
   const peopleIds = new Set(people.map((character) => character.id));
   const incoming = new Map(people.map((character) => [character.id, 0]));
   const children = new Map<string, string[]>();
-  project.parentLinks.filter((link) => link.active && peopleIds.has(link.parentId) && peopleIds.has(link.childId)).forEach((link) => {
-    incoming.set(link.childId, (incoming.get(link.childId) ?? 0) + 1);
-    children.set(link.parentId, [...(children.get(link.parentId) ?? []), link.childId]);
-  });
+  project.parentLinks
+    .filter((link) => link.active && peopleIds.has(link.parentId) && peopleIds.has(link.childId))
+    .forEach((link) => {
+      incoming.set(link.childId, (incoming.get(link.childId) ?? 0) + 1);
+      children.set(link.parentId, [...(children.get(link.parentId) ?? []), link.childId]);
+    });
 
   const generation = new Map<string, number>();
   const queue = people.filter((character) => (incoming.get(character.id) ?? 0) === 0).map((character) => character.id);
@@ -250,11 +321,13 @@ export function autoLayout(project: Project): Record<string, { x: number; y: num
     levels.set(level, [...(levels.get(level) ?? []), character.id]);
   });
   const positions: Record<string, { x: number; y: number }> = {};
-  [...levels.entries()].sort(([a], [b]) => a - b).forEach(([level, ids]) => {
-    ids.forEach((id, index) => {
-      positions[id] = { x: 100 + index * 250, y: 90 + level * 230 };
+  [...levels.entries()]
+    .sort(([a], [b]) => a - b)
+    .forEach(([level, ids]) => {
+      ids.forEach((id, index) => {
+        positions[id] = { x: 100 + index * 250, y: 90 + level * 230 };
+      });
     });
-  });
   return positions;
 }
 
@@ -262,10 +335,12 @@ export function hasAncestorCycle(project: Project): boolean {
   const ids = project.characters.map((character) => character.id);
   const indegree = new Map(ids.map((id) => [id, 0]));
   const children = new Map<string, string[]>();
-  project.parentLinks.filter((link) => link.active && indegree.has(link.parentId) && indegree.has(link.childId)).forEach((link) => {
-    indegree.set(link.childId, indegree.get(link.childId)! + 1);
-    children.set(link.parentId, [...(children.get(link.parentId) ?? []), link.childId]);
-  });
+  project.parentLinks
+    .filter((link) => link.active && indegree.has(link.parentId) && indegree.has(link.childId))
+    .forEach((link) => {
+      indegree.set(link.childId, indegree.get(link.childId)! + 1);
+      children.set(link.parentId, [...(children.get(link.parentId) ?? []), link.childId]);
+    });
   const queue = ids.filter((id) => indegree.get(id) === 0);
   for (let index = 0; index < queue.length; index++) {
     for (const childId of children.get(queue[index]) ?? []) {

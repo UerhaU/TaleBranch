@@ -2,30 +2,46 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
 import { createDemoProject, createEmptyProject } from "./project";
-import { deleteStoredProject, downloadProject, importProject, listProjects, loadInitialProject, loadProject, saveProject, saveProjectIrreversibly } from "./storage";
+import {
+  deleteStoredProject,
+  downloadProject,
+  importProject,
+  listProjects,
+  loadInitialProject,
+  loadProject,
+  saveProject,
+  saveProjectIrreversibly,
+} from "./storage";
 import { parseProject } from "./validation";
 
 const file = (value: unknown) => ({ text: async () => JSON.stringify(value) }) as File;
 const manifest = (project = createDemoProject()) => ({ app: "dynasty-chronicles", formatVersion: 1, project });
 
-beforeEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
+beforeEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 describe("project storage and import", () => {
   it("returns no dynasty for an empty store without generating or saving one", () => {
-    expect(loadInitialProject()).toBeNull(); expect(listProjects()).toEqual([]);
+    expect(loadInitialProject()).toBeNull();
+    expect(listProjects()).toEqual([]);
     expect(localStorage.length).toBe(0);
   });
 
   it("deletes the last dynasty without saving a replacement", () => {
-    const project = createDemoProject(); saveProject(project);
+    const project = createDemoProject();
+    saveProject(project);
     deleteStoredProject(project.id);
-    expect(loadProject(project.id)).toBeNull(); expect(loadInitialProject()).toBeNull();
+    expect(loadProject(project.id)).toBeNull();
+    expect(loadInitialProject()).toBeNull();
     expect(listProjects()).toEqual([]);
     expect(localStorage.getItem("dynasty-chronicles:active")).toBeNull();
   });
 
   it("rolls back metadata when removing the last dynasty fails", () => {
-    const project = createDemoProject(); saveProject(project);
+    const project = createDemoProject();
+    saveProject(project);
     const before = { ...localStorage };
     const remove = Storage.prototype.removeItem;
     vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function (this: Storage, key) {
@@ -39,27 +55,43 @@ describe("project storage and import", () => {
     vi.stubGlobal("crypto", webcrypto);
     const originalURL = URL;
     let downloaded: Blob | undefined;
-    vi.stubGlobal("URL", class extends originalURL {
-      static createObjectURL(blob: Blob) { downloaded = blob; return "blob:test-export"; }
-      static revokeObjectURL() {}
-    });
+    vi.stubGlobal(
+      "URL",
+      class extends originalURL {
+        static createObjectURL(blob: Blob) {
+          downloaded = blob;
+          return "blob:test-export";
+        }
+        static revokeObjectURL() {}
+      },
+    );
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-      expect(this.isConnected).toBe(true); expect(this.download).toMatch(/\.dynasty-tree$/);
+      expect(this.isConnected).toBe(true);
+      expect(this.download).toMatch(/\.dynasty-tree$/);
     });
     try {
       const project = createDemoProject();
-      project.characters[0].stages[0].photo = { original: "data:image/png;base64,b3JpZ2luYWw=", edited: "data:image/webp;base64,Y3JvcA==", updatedAt: project.updatedAt };
+      project.characters[0].stages[0].photo = {
+        original: "data:image/png;base64,b3JpZ2luYWw=",
+        edited: "data:image/webp;base64,Y3JvcA==",
+        updatedAt: project.updatedAt,
+      };
       saveProject(project);
       await downloadProject(loadProject(project.id)!);
-      expect(click).toHaveBeenCalledOnce(); expect(document.querySelector("a[download]")).toBeNull();
+      expect(click).toHaveBeenCalledOnce();
+      expect(document.querySelector("a[download]")).toBeNull();
       const text = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject;
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
         reader.readAsText(downloaded!);
       });
       expect(JSON.parse(text).app).toBe("dynasty-chronicles");
       const imported = await importProject({ text: async () => text } as File, "копия");
       expect(imported.characters).toEqual(parseProject(project).characters);
-    } finally { vi.unstubAllGlobals(); }
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("retains a damaged compressed record for recovery instead of replacing it", () => {
@@ -72,13 +104,17 @@ describe("project storage and import", () => {
   it("compresses local records and restores photographs, catalog values and Unicode text losslessly", () => {
     const project = createDemoProject();
     project.characters[0].notes = "Личный текст 🐈 — заметки";
-    project.characters[0].stages[0].photo = { original: `data:image/png;base64,${btoa("photo".repeat(3000))}`, edited: "data:image/webp;base64,Y3JvcA==", updatedAt: project.updatedAt };
+    project.characters[0].stages[0].photo = {
+      original: `data:image/png;base64,${btoa("photo".repeat(3000))}`,
+      edited: "data:image/webp;base64,Y3JvcA==",
+      updatedAt: project.updatedAt,
+    };
     saveProject(project);
     const stored = localStorage.getItem(`dynasty-chronicles:project:${project.id}`)!;
     expect(stored.length).toBeLessThan(JSON.stringify(project).length / 2);
     expect(loadProject(project.id)).toEqual(parseProject(project));
     localStorage.removeItem("dynasty-chronicles:index");
-    expect(listProjects().map(item => item.id)).toEqual([project.id]);
+    expect(listProjects().map((item) => item.id)).toEqual([project.id]);
   });
 
   it("opens legacy plain JSON and saves the same data in the compressed format", () => {
@@ -102,21 +138,26 @@ describe("project storage and import", () => {
     expect(loadProject(project.id)?.characters).toHaveLength(6);
   });
 
-  it.each(["dynasty-chronicles:index", "dynasty-chronicles:active", "dynasty-chronicles:project:project_demo"])("preserves the source if a purge write to %s fails", (failedKey) => {
-    const project = createDemoProject(); saveProject(project);
-    const original = localStorage.getItem("dynasty-chronicles:project:project_demo");
-    const setItem = Storage.prototype.setItem;
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
-      if (key === failedKey) throw Error("Failed storage write");
-      setItem.call(this, key, value);
-    });
-    expect(() => saveProjectIrreversibly({ ...project, characters: [], parentLinks: [], pairLinks: [] })).toThrow();
-    expect(localStorage.getItem("dynasty-chronicles:project:project_demo")).toBe(original);
-    expect(loadInitialProject()?.id).toBe(project.id);
-  });
+  it.each(["dynasty-chronicles:index", "dynasty-chronicles:active", "dynasty-chronicles:project:project_demo"])(
+    "preserves the source if a purge write to %s fails",
+    (failedKey) => {
+      const project = createDemoProject();
+      saveProject(project);
+      const original = localStorage.getItem("dynasty-chronicles:project:project_demo");
+      const setItem = Storage.prototype.setItem;
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+        if (key === failedKey) throw Error("Failed storage write");
+        setItem.call(this, key, value);
+      });
+      expect(() => saveProjectIrreversibly({ ...project, characters: [], parentLinks: [], pairLinks: [] })).toThrow();
+      expect(localStorage.getItem("dynasty-chronicles:project:project_demo")).toBe(original);
+      expect(loadInitialProject()?.id).toBe(project.id);
+    },
+  );
 
   it("rolls back a dynasty switch when the final removal fails", () => {
-    const project = createDemoProject(); saveProject(project);
+    const project = createDemoProject();
+    saveProject(project);
     const replacement = createEmptyProject("Empty");
     const before = { ...localStorage };
     const removeItem = Storage.prototype.removeItem;
@@ -129,8 +170,10 @@ describe("project storage and import", () => {
   });
 
   it("removes only the chosen dynasty and preserves other data and preferences", () => {
-    const removed = createDemoProject(), remaining = createEmptyProject("Keep me");
-    saveProject(remaining); saveProject(removed);
+    const removed = createDemoProject(),
+      remaining = createEmptyProject("Keep me");
+    saveProject(remaining);
+    saveProject(removed);
     localStorage.setItem("dynasty-chronicles:language", "ru");
     const saved = localStorage.getItem(`dynasty-chronicles:project:${remaining.id}`);
     deleteStoredProject(removed.id, remaining);

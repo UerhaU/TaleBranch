@@ -9,10 +9,22 @@ export interface StagePhoto {
   transform?: PhotoTransform;
 }
 
-export interface PhotoTransform { zoom: number; x: number; y: number; rotation: number; flipped: boolean }
+export interface PhotoTransform {
+  zoom: number;
+  x: number;
+  y: number;
+  rotation: number;
+  flipped: boolean;
+}
 
-export interface SkillValue { id: string; level: number }
-export interface PreferenceValue { id: string; rating: "like" | "dislike" }
+export interface SkillValue {
+  id: string;
+  level: number;
+}
+export interface PreferenceValue {
+  id: string;
+  rating: "like" | "dislike";
+}
 export interface CareerPeriod {
   id: string;
   careerId: string;

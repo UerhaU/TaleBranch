@@ -19,10 +19,20 @@ function link(parentId: string, childId: string): ParentLink {
 describe("модель графа", () => {
   it("ставит потомка ниже самого длинного пути предков при нескольких родителях", () => {
     const project = createEmptyProject();
-    project.characters = ["root", "short", "long1", "long2", "child", "grandchild"].map((id) => createCharacter(id, "sim", { id }));
-    project.parentLinks = [link("root", "short"), link("root", "long1"), link("long1", "long2"), link("short", "child"), link("long2", "child"), link("child", "grandchild")];
+    project.characters = ["root", "short", "long1", "long2", "child", "grandchild"].map((id) =>
+      createCharacter(id, "sim", { id }),
+    );
+    project.parentLinks = [
+      link("root", "short"),
+      link("root", "long1"),
+      link("long1", "long2"),
+      link("short", "child"),
+      link("long2", "child"),
+      link("child", "grandchild"),
+    ];
     const positions = autoLayout(project);
-    for (const relation of project.parentLinks) expect(positions[relation.childId].y).toBeGreaterThan(positions[relation.parentId].y);
+    for (const relation of project.parentLinks)
+      expect(positions[relation.childId].y).toBeGreaterThan(positions[relation.parentId].y);
   });
   it("нормализует порядок участников пары", () => {
     expect(normalizePair("z", "a")).toEqual(["a", "z"]);

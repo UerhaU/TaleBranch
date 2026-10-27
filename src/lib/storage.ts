@@ -17,7 +17,9 @@ function encodeProject(project: Project): string {
 }
 
 function decodeProject(raw: string): Project {
-  const json = raw.startsWith(COMPRESSED_PREFIX) ? LZString.decompressFromUTF16(raw.slice(COMPRESSED_PREFIX.length)) : raw;
+  const json = raw.startsWith(COMPRESSED_PREFIX)
+    ? LZString.decompressFromUTF16(raw.slice(COMPRESSED_PREFIX.length))
+    : raw;
   if (!json) throw new Error("INVALID_COMPRESSED_PROJECT");
   return parseProject(JSON.parse(json));
 }
@@ -65,10 +67,19 @@ function readIndex(): ProjectSummary[] {
   let projects: ProjectSummary[] = [];
   try {
     const raw = JSON.parse(localStorage.getItem(INDEX_KEY) ?? "[]");
-    if (Array.isArray(raw)) projects = raw.filter((item): item is ProjectSummary =>
-      item && typeof item.id === "string" && typeof item.name === "string" && typeof item.updatedAt === "string" &&
-      typeof item.characterCount === "number" && localStorage.getItem(`${PROJECT_PREFIX}${item.id}`) !== null);
-  } catch { /* Rebuild a damaged cache from project records. */ }
+    if (Array.isArray(raw))
+      projects = raw.filter(
+        (item): item is ProjectSummary =>
+          item &&
+          typeof item.id === "string" &&
+          typeof item.name === "string" &&
+          typeof item.updatedAt === "string" &&
+          typeof item.characterCount === "number" &&
+          localStorage.getItem(`${PROJECT_PREFIX}${item.id}`) !== null,
+      );
+  } catch {
+    /* Rebuild a damaged cache from project records. */
+  }
   const indexed = new Set(projects.map((item) => item.id));
   for (let index = 0; index < localStorage.length; index++) {
     const key = localStorage.key(index);
@@ -95,8 +106,11 @@ function summary(project: Project): ProjectSummary {
 }
 
 export function listProjects(): ProjectSummary[] {
-  try { return readIndex().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)); }
-  catch { return []; }
+  try {
+    return readIndex().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  } catch {
+    return [];
+  }
 }
 
 export function saveProject(project: Project): void {
@@ -119,7 +133,11 @@ export function loadInitialProject(): Project | null {
   const first = listProjects()[0];
   const recent = first ? loadProject(first.id) : null;
   if (recent) return recent;
-  if (Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).some((key) => key?.startsWith(PROJECT_PREFIX))) {
+  if (
+    Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).some((key) =>
+      key?.startsWith(PROJECT_PREFIX),
+    )
+  ) {
     throw new Error("PROJECT_RECOVERY_REQUIRED");
   }
   return null;
@@ -141,7 +159,9 @@ function writeWithRollback(changes: Array<[string, string | null]>): void {
       try {
         if (value === null) localStorage.removeItem(key);
         else localStorage.setItem(key, value);
-      } catch { /* Project records remain recoverable through readIndex. */ }
+      } catch {
+        /* Project records remain recoverable through readIndex. */
+      }
     }
     throw error;
   }
@@ -160,13 +180,22 @@ export function deleteStoredProject(id: string, replacement?: Project): void {
   if (id === replacement?.id) throw new Error("CANNOT_DELETE_REPLACEMENT");
   const remaining = readIndex().filter((item) => item.id !== id && item.id !== replacement?.id);
   const index = replacement ? [summary(replacement), ...remaining] : remaining;
-  const changes: Array<[string, string | null]> = replacement ? [[`${PROJECT_PREFIX}${replacement.id}`, encodeProject(replacement)]] : [];
-  changes.push([INDEX_KEY, JSON.stringify(index)], [ACTIVE_KEY, replacement?.id ?? null], [`${PROJECT_PREFIX}${id}`, null]);
+  const changes: Array<[string, string | null]> = replacement
+    ? [[`${PROJECT_PREFIX}${replacement.id}`, encodeProject(replacement)]]
+    : [];
+  changes.push(
+    [INDEX_KEY, JSON.stringify(index)],
+    [ACTIVE_KEY, replacement?.id ?? null],
+    [`${PROJECT_PREFIX}${id}`, null],
+  );
   writeWithRollback(changes);
 }
 
 function downloadText(contents: string, filename: string) {
-  if (isTauri()) { void saveDesktopExport(filename, contents).catch(() => {}); return; }
+  if (isTauri()) {
+    void saveDesktopExport(filename, contents).catch(() => {});
+    return;
+  }
   const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -174,17 +203,20 @@ function downloadText(contents: string, filename: string) {
   anchor.download = filename;
   // Attach the link so browsers that ignore detached download links can save it.
   document.body.append(anchor);
-  try { anchor.click(); }
-  finally {
+  try {
+    anchor.click();
+  } finally {
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
 
 export function downloadRecoveryData(): void {
-  const records = Object.fromEntries(Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)!)
-    .filter((key) => key.startsWith("dynasty-chronicles:"))
-    .map((key) => [key, localStorage.getItem(key)]));
+  const records = Object.fromEntries(
+    Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)!)
+      .filter((key) => key.startsWith("dynasty-chronicles:"))
+      .map((key) => [key, localStorage.getItem(key)]),
+  );
   downloadText(JSON.stringify(records, null, 2), "dynasty-recovery.json");
 }
 
@@ -195,16 +227,24 @@ async function contentHash(project: unknown): Promise<string> {
 }
 
 export async function serializeProject(project: Project): Promise<string> {
-  return JSON.stringify({ app: "dynasty-chronicles", formatVersion: 1,
-    contentHash: await contentHash(project), project }, null, 2);
+  return JSON.stringify(
+    { app: "dynasty-chronicles", formatVersion: 1, contentHash: await contentHash(project), project },
+    null,
+    2,
+  );
 }
 
 export async function readProjectDocument(text: string): Promise<Project> {
   const raw = JSON.parse(text);
   if (!raw || raw.app !== "dynasty-chronicles" || raw.formatVersion !== 1) throw new Error("INVALID_PROJECT_FORMAT");
-  if (raw.contentHash !== undefined && raw.contentHash !== await contentHash(raw.project)) throw new Error("PROJECT_CHECKSUM_MISMATCH");
+  if (raw.contentHash !== undefined && raw.contentHash !== (await contentHash(raw.project)))
+    throw new Error("PROJECT_CHECKSUM_MISMATCH");
   const project = parseProject(raw.project);
-  if (raw.checksum !== undefined && raw.checksum !== `${project.characters.length}:${project.parentLinks.length}:${project.pairLinks.length}`) throw new Error("PROJECT_CHECKSUM_MISMATCH");
+  if (
+    raw.checksum !== undefined &&
+    raw.checksum !== `${project.characters.length}:${project.parentLinks.length}:${project.pairLinks.length}`
+  )
+    throw new Error("PROJECT_CHECKSUM_MISMATCH");
   return project;
 }
 

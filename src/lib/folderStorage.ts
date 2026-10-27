@@ -2,7 +2,14 @@ import type { Project } from "../types";
 import { readProjectDocument, serializeProject } from "./storage";
 import { makeId } from "./id";
 import { isTauri } from "@tauri-apps/api/core";
-import { clearLastDesktopFolder, forgetDesktopFolder, lastDesktopFolder, pickDesktopDirectory, recentDesktopFolders, rememberDesktopFolder } from "./desktopStorage";
+import {
+  clearLastDesktopFolder,
+  forgetDesktopFolder,
+  lastDesktopFolder,
+  pickDesktopDirectory,
+  recentDesktopFolders,
+  rememberDesktopFolder,
+} from "./desktopStorage";
 
 export const DYNASTY_FILE = "dynasty.json";
 export const FOLDER_ACTIVE_KEY = "dynasty-chronicles:folder-active";
@@ -23,13 +30,19 @@ export interface DynastyDirectory {
 
 /** A display name may contain characters that Windows cannot use in a folder. */
 export function dynastyFolderName(name: string): string {
-  let safe = Array.from(name.trim().replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_")).slice(0, 100).join("").replace(/[.\s]+$/g, "");
+  let safe = Array.from(name.trim().replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_"))
+    .slice(0, 100)
+    .join("")
+    .replace(/[.\s]+$/g, "");
   if (!safe) safe = "Dynasty";
   if (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(safe)) safe = `_${safe}`;
   return safe;
 }
-type PickerWindow = Window & { showDirectoryPicker?: (options: { mode: "readwrite"; id: string }) => Promise<DynastyDirectory> };
-export const supportsDynastyFolders = () => isTauri() || typeof (window as PickerWindow).showDirectoryPicker === "function";
+type PickerWindow = Window & {
+  showDirectoryPicker?: (options: { mode: "readwrite"; id: string }) => Promise<DynastyDirectory>;
+};
+export const supportsDynastyFolders = () =>
+  isTauri() || typeof (window as PickerWindow).showDirectoryPicker === "function";
 export function pickDynastyDirectory(): Promise<DynastyDirectory> {
   if (isTauri()) return pickDesktopDirectory();
   const picker = (window as PickerWindow).showDirectoryPicker;
@@ -38,12 +51,15 @@ export function pickDynastyDirectory(): Promise<DynastyDirectory> {
   return picker.call(window, { mode: "readwrite", id: "talebranch-dynasties" });
 }
 export async function grantDirectory(directory: DynastyDirectory): Promise<void> {
-  if (await directory.queryPermission({ mode: "readwrite" }) !== "granted" &&
-      await directory.requestPermission({ mode: "readwrite" }) !== "granted") throw new DOMException("Folder access denied", "NotAllowedError");
+  if (
+    (await directory.queryPermission({ mode: "readwrite" })) !== "granted" &&
+    (await directory.requestPermission({ mode: "readwrite" })) !== "granted"
+  )
+    throw new DOMException("Folder access denied", "NotAllowedError");
 }
 async function digest(text: string) {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** Content stays in the selected folder; bookmarks contain only metadata. */
@@ -51,23 +67,34 @@ export class DynastyFolder {
   private queue: Promise<unknown> = Promise.resolve();
   private deleted = false;
   private initialFileCreated = false;
-  private constructor(public readonly directory: DynastyDirectory, private revision: string, private readonly projectId: string, public parent?: DynastyDirectory) {}
-  static async open(directory: DynastyDirectory, parent?: DynastyDirectory): Promise<{ folder: DynastyFolder; project: Project }> {
-    const text = await (await directory.getFileHandle(DYNASTY_FILE)).getFile().then(file => file.text());
+  private constructor(
+    public readonly directory: DynastyDirectory,
+    private revision: string,
+    private readonly projectId: string,
+    public parent?: DynastyDirectory,
+  ) {}
+  static async open(
+    directory: DynastyDirectory,
+    parent?: DynastyDirectory,
+  ): Promise<{ folder: DynastyFolder; project: Project }> {
+    const text = await (await directory.getFileHandle(DYNASTY_FILE)).getFile().then((file) => file.text());
     const project = await readProjectDocument(text);
     return { folder: new DynastyFolder(directory, await digest(text), project.id, parent), project };
   }
   static async create(directory: DynastyDirectory, project: Project): Promise<DynastyFolder> {
     // Only dynasty.json belongs to us. Other files may already exist here.
     const folder = new DynastyFolder(directory, "", project.id);
-    try { await folder.save(project); }
-    catch (error) {
+    try {
+      await folder.save(project);
+    } catch (error) {
       // createWritable preserves old contents; a failed first save may leave an
       // empty newly-created file. Remove only that empty placeholder.
       try {
         const file = await (await directory.getFileHandle(DYNASTY_FILE)).getFile();
         if (folder.initialFileCreated && file.size === 0) await directory.removeEntry(DYNASTY_FILE);
-      } catch { /* Original failure is the useful diagnostic. */ }
+      } catch {
+        /* Original failure is the useful diagnostic. */
+      }
       throw error;
     }
     return folder;
@@ -84,25 +111,31 @@ export class DynastyFolder {
         const folder = await DynastyFolder.create(directory, project);
         folder.parent = parent;
         return folder;
-      }
-      catch (error) {
+      } catch (error) {
         // Remove only an empty new folder; never recursively remove contents.
         try {
           let empty = true;
-          for await (const _entry of directory.values()) { empty = false; break; }
+          for await (const _entry of directory.values()) {
+            empty = false;
+            break;
+          }
           if (empty) await parent.removeEntry(name);
-        } catch { /* Preserve the original write failure. */ }
+        } catch {
+          /* Preserve the original write failure. */
+        }
         throw error;
       }
     };
-    if (typeof navigator !== "undefined" && navigator.locks) return await navigator.locks.request(`talebranch:create-folder:${base}`, create);
+    if (typeof navigator !== "undefined" && navigator.locks)
+      return await navigator.locks.request(`talebranch:create-folder:${base}`, create);
     return create();
   }
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const job = this.queue.then(async (): Promise<T> => {
       // Share the write lock with other tabs of this app. Revision checks still
       // detect edits made by other applications outside the browser.
-      if (typeof navigator !== "undefined" && navigator.locks) return await navigator.locks.request(`talebranch:dynasty:${this.projectId}`, operation);
+      if (typeof navigator !== "undefined" && navigator.locks)
+        return await navigator.locks.request(`talebranch:dynasty:${this.projectId}`, operation);
       return await operation();
     });
     this.queue = job.catch(() => {});
@@ -111,12 +144,16 @@ export class DynastyFolder {
   private async checkRevision() {
     if (this.deleted) throw new Error("FOLDER_DELETED");
     if (!this.revision) {
-      try { await this.directory.getFileHandle(DYNASTY_FILE); }
-      catch (error) { if ((error as Error).name === "NotFoundError") return; throw error; }
+      try {
+        await this.directory.getFileHandle(DYNASTY_FILE);
+      } catch (error) {
+        if ((error as Error).name === "NotFoundError") return;
+        throw error;
+      }
       throw new Error("FOLDER_CONFLICT");
     }
-    const text = await (await this.directory.getFileHandle(DYNASTY_FILE)).getFile().then(file => file.text());
-    if (await digest(text) !== this.revision) throw new Error("FOLDER_CONFLICT");
+    const text = await (await this.directory.getFileHandle(DYNASTY_FILE)).getFile().then((file) => file.text());
+    if ((await digest(text)) !== this.revision) throw new Error("FOLDER_CONFLICT");
   }
   save(project: Project): Promise<void> {
     return this.enqueue(async () => {
@@ -131,7 +168,14 @@ export class DynastyFolder {
         if (this.revision) await this.checkRevision();
         // close atomically replaces the old file; a failed write keeps it intact.
         await writer.close();
-      } catch (error) { try { await writer.abort(); } catch { /* Already closed. */ } throw error; }
+      } catch (error) {
+        try {
+          await writer.abort();
+        } catch {
+          /* Already closed. */
+        }
+        throw error;
+      }
       this.revision = await digest(text);
     });
   }
@@ -141,30 +185,36 @@ export class DynastyFolder {
       if (this.directory.deleteDynasty) await this.directory.deleteDynasty(this.revision);
       else if (this.parent) {
         const target = await this.parent.getDirectoryHandle(this.directory.name);
-        if (!await target.isSameEntry(this.directory)) throw new Error("FOLDER_CONFLICT");
+        if (!(await target.isSameEntry(this.directory))) throw new Error("FOLDER_CONFLICT");
         await this.parent.removeEntry(this.directory.name, { recursive: true });
-      }
-      else if (this.directory.remove) await this.directory.remove({ recursive: true });
+      } else if (this.directory.remove) await this.directory.remove({ recursive: true });
       else throw new Error("FOLDER_DELETE_UNSUPPORTED");
       this.deleted = true;
     });
   }
 }
 
-export interface RecentFolder { id: string; name: string; directory: DynastyDirectory; parent?: DynastyDirectory }
+export interface RecentFolder {
+  id: string;
+  name: string;
+  directory: DynastyDirectory;
+  parent?: DynastyDirectory;
+}
 export async function lastDynastyFolder(): Promise<RecentFolder | undefined> {
   if (isTauri()) return lastDesktopFolder();
   if (!localStorage.getItem(FOLDER_ACTIVE_KEY)) return;
   const id = localStorage.getItem(LAST_BOOKMARK_KEY);
   if (!id) return;
-  return (await recentDynastyFolders()).find(item => item.id === id);
+  return (await recentDynastyFolders()).find((item) => item.id === id);
 }
 export async function clearLastDynastyFolder(resumeBrowserProject = false): Promise<void> {
   try {
     localStorage.removeItem(LAST_BOOKMARK_KEY);
     if (resumeBrowserProject) localStorage.removeItem(FOLDER_ACTIVE_KEY);
     else localStorage.setItem(FOLDER_ACTIVE_KEY, "closed");
-  } catch { /* Optional browser metadata. */ }
+  } catch {
+    /* Optional browser metadata. */
+  }
   if (isTauri()) await clearLastDesktopFolder();
 }
 // Only a directory handle and display metadata: no characters or photographs.
@@ -182,8 +232,14 @@ export async function recentDynastyFolders(): Promise<RecentFolder[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("folders", "readonly");
     const request = tx.objectStore("folders").getAll();
-    tx.oncomplete = () => { db.close(); resolve(request.result); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.oncomplete = () => {
+      db.close();
+      resolve(request.result);
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
 }
 export async function rememberDynastyFolder(folder: DynastyFolder, project: Project): Promise<void> {
@@ -193,17 +249,39 @@ export async function rememberDynastyFolder(folder: DynastyFolder, project: Proj
   const recent = await recentDynastyFolders();
   let id: string | undefined;
   for (const item of recent) {
-    try { if (await item.directory.isSameEntry(folder.directory)) { id = item.id; break; } }
-    catch { /* A stale bookmark must not prevent remembering a new folder. */ }
+    try {
+      if (await item.directory.isSameEntry(folder.directory)) {
+        id = item.id;
+        break;
+      }
+    } catch {
+      /* A stale bookmark must not prevent remembering a new folder. */
+    }
   }
   id ??= makeId("folder");
   const bookmarkId = id;
   const db = await bookmarks();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("folders", "readwrite");
-    tx.objectStore("folders").put({ id: bookmarkId, name: project.name, directory: folder.directory, parent: folder.parent } satisfies RecentFolder);
-    tx.oncomplete = () => { db.close(); try { localStorage.setItem(LAST_BOOKMARK_KEY, bookmarkId); } catch { /* Optional bookmark. */ } resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.objectStore("folders").put({
+      id: bookmarkId,
+      name: project.name,
+      directory: folder.directory,
+      parent: folder.parent,
+    } satisfies RecentFolder);
+    tx.oncomplete = () => {
+      db.close();
+      try {
+        localStorage.setItem(LAST_BOOKMARK_KEY, bookmarkId);
+      } catch {
+        /* Optional bookmark. */
+      }
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
 }
 export async function forgetDynastyFolder(directory: DynastyDirectory): Promise<void> {
@@ -211,14 +289,23 @@ export async function forgetDynastyFolder(directory: DynastyDirectory): Promise<
   const recent = await recentDynastyFolders();
   const ids: string[] = [];
   for (const item of recent) {
-    try { if (await item.directory.isSameEntry(directory)) ids.push(item.id); }
-    catch { /* An unrelated inaccessible folder is left alone. */ }
+    try {
+      if (await item.directory.isSameEntry(directory)) ids.push(item.id);
+    } catch {
+      /* An unrelated inaccessible folder is left alone. */
+    }
   }
   const db = await bookmarks();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("folders", "readwrite");
     for (const id of ids) tx.objectStore("folders").delete(id);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
 }

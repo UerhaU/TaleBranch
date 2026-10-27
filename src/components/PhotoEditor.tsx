@@ -5,7 +5,12 @@ import { useI18n } from "../i18n";
 import { drawPhoto, initialPhotoTransform } from "../lib/photo";
 import type { PhotoTransform } from "../types";
 
-export function PhotoEditor({ source, initialTransform, onClose, onSave }: {
+export function PhotoEditor({
+  source,
+  initialTransform,
+  onClose,
+  onSave,
+}: {
   source: string;
   initialTransform?: PhotoTransform;
   onClose: () => void;
@@ -23,10 +28,16 @@ export function PhotoEditor({ source, initialTransform, onClose, onSave }: {
 
   useEffect(() => {
     const image = new Image();
-    image.onload = () => { imageRef.current = image; setLoaded(true); };
+    image.onload = () => {
+      imageRef.current = image;
+      setLoaded(true);
+    };
     image.onerror = () => setFailed(true);
     image.src = source;
-    return () => { image.onload = null; image.onerror = null; };
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
   }, [source]);
 
   const render = () => {
@@ -39,7 +50,9 @@ export function PhotoEditor({ source, initialTransform, onClose, onSave }: {
     return canvas.toDataURL("image/webp", 0.9);
   };
 
-  useEffect(() => { if (loaded) setPreview(render()); }, [loaded, transform]);
+  useEffect(() => {
+    if (loaded) setPreview(render());
+  }, [loaded, transform]);
 
   const apply = (patch: Partial<PhotoTransform>) => {
     setHistory((items) => [...items.slice(-49), transform]);
@@ -62,33 +75,51 @@ export function PhotoEditor({ source, initialTransform, onClose, onSave }: {
   };
 
   return (
-    <Modal title={t("cropPhoto")} subtitle={t("cropPhotoHint")} onClose={onClose} wide onKeyDown={(event) => {
+    <Modal
+      title={t("cropPhoto")}
+      subtitle={t("cropPhotoHint")}
+      onClose={onClose}
+      wide
+      onKeyDown={(event) => {
         if (!(event.ctrlKey || event.metaKey)) return;
         const key = event.key.toLowerCase();
         if (key === "z" || key === "y") {
-          event.preventDefault(); event.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
           key === "y" || event.shiftKey ? redo() : undo();
         }
-      }}>
+      }}
+    >
       <div className="photo-editor">
         <div className="crop-stage">
-          <div className="crop-frame" role="img" aria-label={t("preview")}
+          <div
+            className="crop-frame"
+            role="img"
+            aria-label={t("preview")}
             onPointerDown={(event) => {
               if (!loaded) return;
               event.currentTarget.setPointerCapture(event.pointerId);
               dragOrigin.current = { x: event.clientX, y: event.clientY, transform };
-              setHistory((items) => [...items.slice(-49), transform]); setFuture([]);
+              setHistory((items) => [...items.slice(-49), transform]);
+              setFuture([]);
             }}
             onPointerMove={(event) => {
               const origin = dragOrigin.current;
               if (!origin) return;
               const width = event.currentTarget.getBoundingClientRect().width;
-              setTransform({ ...origin.transform,
+              setTransform({
+                ...origin.transform,
                 x: Math.max(-1, Math.min(1, origin.transform.x + (event.clientX - origin.x) / width)),
                 y: Math.max(-1, Math.min(1, origin.transform.y + (event.clientY - origin.y) / width)),
               });
             }}
-            onPointerUp={() => { dragOrigin.current = null; }} onPointerCancel={() => { dragOrigin.current = null; }}>
+            onPointerUp={() => {
+              dragOrigin.current = null;
+            }}
+            onPointerCancel={() => {
+              dragOrigin.current = null;
+            }}
+          >
             {preview && <img src={preview} alt={t("preview")} draggable={false} />}
             <div className="crop-grid" />
             {failed && <p role="alert">{t("imageReadError")}</p>}
@@ -97,19 +128,80 @@ export function PhotoEditor({ source, initialTransform, onClose, onSave }: {
         </div>
         <aside className="photo-tools">
           <span className="eyebrow">{t("scalePosition")}</span>
-          <div className="range-row"><ZoomOut size={17} /><input aria-label={t("scalePosition")} type="range" min="1" max="3" step="0.05" value={transform.zoom} onChange={(event) => apply({ zoom: Number(event.target.value) })} /><ZoomIn size={17} /></div>
-          <label className="field"><span>{t("horizontal")}</span><input type="range" min="-1" max="1" step="0.01" value={transform.x} onChange={(event) => apply({ x: Number(event.target.value) })} /></label>
-          <label className="field"><span>{t("vertical")}</span><input type="range" min="-1" max="1" step="0.01" value={transform.y} onChange={(event) => apply({ y: Number(event.target.value) })} /></label>
-          <div className="photo-action-grid">
-            <button onClick={() => apply({ rotation: (transform.rotation - 90) % 360 })}><RotateCcw size={17} /> −90°</button>
-            <button onClick={() => apply({ rotation: (transform.rotation + 90) % 360 })}><RotateCw size={17} /> +90°</button>
-            <button onClick={() => apply({ flipped: !transform.flipped })}><FlipHorizontal2 size={17} /> {t("flip")}</button>
-            <button onClick={() => apply(initialPhotoTransform)}><ImagePlus size={17} /> {t("reset")}</button>
+          <div className="range-row">
+            <ZoomOut size={17} />
+            <input
+              aria-label={t("scalePosition")}
+              type="range"
+              min="1"
+              max="3"
+              step="0.05"
+              value={transform.zoom}
+              onChange={(event) => apply({ zoom: Number(event.target.value) })}
+            />
+            <ZoomIn size={17} />
           </div>
-          <div className="history-actions"><button disabled={!history.length} onClick={undo}>{t("undo")}</button><button disabled={!future.length} onClick={redo}>{t("redo")}</button></div>
+          <label className="field">
+            <span>{t("horizontal")}</span>
+            <input
+              type="range"
+              min="-1"
+              max="1"
+              step="0.01"
+              value={transform.x}
+              onChange={(event) => apply({ x: Number(event.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t("vertical")}</span>
+            <input
+              type="range"
+              min="-1"
+              max="1"
+              step="0.01"
+              value={transform.y}
+              onChange={(event) => apply({ y: Number(event.target.value) })}
+            />
+          </label>
+          <div className="photo-action-grid">
+            <button onClick={() => apply({ rotation: (transform.rotation - 90) % 360 })}>
+              <RotateCcw size={17} /> −90°
+            </button>
+            <button onClick={() => apply({ rotation: (transform.rotation + 90) % 360 })}>
+              <RotateCw size={17} /> +90°
+            </button>
+            <button onClick={() => apply({ flipped: !transform.flipped })}>
+              <FlipHorizontal2 size={17} /> {t("flip")}
+            </button>
+            <button onClick={() => apply(initialPhotoTransform)}>
+              <ImagePlus size={17} /> {t("reset")}
+            </button>
+          </div>
+          <div className="history-actions">
+            <button disabled={!history.length} onClick={undo}>
+              {t("undo")}
+            </button>
+            <button disabled={!future.length} onClick={redo}>
+              {t("redo")}
+            </button>
+          </div>
         </aside>
       </div>
-      <footer className="modal-footer"><button className="button ghost" onClick={onClose}>{t("doNotChange")}</button><button className="button primary" disabled={!loaded || failed || !preview} onClick={() => { const edited = render(); if (edited) onSave(edited, transform); }}><Check size={17} /> {t("saveCrop")}</button></footer>
+      <footer className="modal-footer">
+        <button className="button ghost" onClick={onClose}>
+          {t("doNotChange")}
+        </button>
+        <button
+          className="button primary"
+          disabled={!loaded || failed || !preview}
+          onClick={() => {
+            const edited = render();
+            if (edited) onSave(edited, transform);
+          }}
+        >
+          <Check size={17} /> {t("saveCrop")}
+        </button>
+      </footer>
     </Modal>
   );
 }

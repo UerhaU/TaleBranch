@@ -18,5 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
+      - run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
       - run: npm test
       - run: npm run build

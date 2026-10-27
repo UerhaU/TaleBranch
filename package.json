@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{js,cjs,mjs}\" vite.config.ts \"tsconfig*.json\" index.html .prettierrc.json",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{js,cjs,mjs}\" vite.config.ts \"tsconfig*.json\" index.html .prettierrc.json",
     "tauri": "tauri",
     "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
     "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1"
@@ -30,6 +32,7 @@
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^25.0.1",
+    "prettier": "3.9.10",
     "typescript": "~5.9.3",
     "vite": "^7.2.2",
     "vitest": "4.1.11"
