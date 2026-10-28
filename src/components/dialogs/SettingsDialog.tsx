@@ -4,9 +4,18 @@ import { Check, Database, Globe, Palette, Save, ShieldCheck, Trash2, type Lucide
 import { TreeIcon } from "../TreeIcon";
 import { Modal } from "../Modal";
 import { supportedLocales, useI18n } from "../../i18n";
-import { TEXT_SIZE, type AppearanceApi, type ThemeMode } from "../../hooks/useAppearance";
+import { TEXT_SIZE, THEMES, type AppearanceApi, type ThemeMode, type ThemeName } from "../../hooks/useAppearance";
 import type { ProjectApi } from "../../hooks/projectApi";
 import type { TreeView } from "../../hooks/useTreeView";
+
+const themeLabels: Record<ThemeName, string> = {
+  default: "themeDefault",
+  garden: "themeGarden",
+  magic: "themeMagic",
+  moon: "themeMoon",
+  city: "themeCity",
+  kingdom: "themeKingdom",
+};
 
 type Section = "look" | "language" | "tree" | "data" | "dynasty";
 
@@ -129,24 +138,32 @@ export function SettingsDialog({
           {section === "look" && (
             <>
               <h3>{t("theme")}</h3>
-              <div className="tb-theme-grid">
-                <button className="tb-theme-tile active" aria-pressed="true">
-                  <span className="tb-theme-preview" data-mode={appearance.theme}>
-                    <span className="pv-bar" />
-                    <span className="pv-card">
-                      <i />
-                      <b />
+              <div className="tb-theme-grid" role="group" aria-label={t("theme")}>
+                {THEMES.map((name) => (
+                  <button
+                    key={name}
+                    className={`tb-theme-tile ${appearance.palette === name ? "active" : ""}`}
+                    aria-pressed={appearance.palette === name}
+                    data-theme={name}
+                    data-mode={appearance.theme}
+                    onClick={() => appearance.update({ palette: name })}
+                  >
+                    <span className="tb-theme-preview" aria-hidden="true">
+                      <span className="pv-bar" />
+                      <span className="pv-card">
+                        <i />
+                        <b />
+                      </span>
+                      <span className="pv-card two">
+                        <i />
+                        <b />
+                      </span>
+                      <span className="pv-btn" />
                     </span>
-                    <span className="pv-card two">
-                      <i />
-                      <b />
-                    </span>
-                    <span className="pv-btn" />
-                  </span>
-                  <span className="tb-theme-name">{t("themeDefault")}</span>
-                </button>
+                    <span className="tb-theme-name">{t(themeLabels[name])}</span>
+                  </button>
+                ))}
               </div>
-              <p className="tb-hint">{t("themesLater")}</p>
               <h3>{t("mode")}</h3>
               <div className="segmented" role="group" aria-label={t("mode")}>
                 {modes.map(([mode, label]) => (
@@ -160,6 +177,12 @@ export function SettingsDialog({
                   </button>
                 ))}
               </div>
+              <Toggle
+                label={t("fieldPattern")}
+                hint={t("fieldPatternHint")}
+                checked={appearance.pattern}
+                onChange={(pattern) => appearance.update({ pattern })}
+              />
               <h3>{t("textSize")}</h3>
               <div className="tb-range">
                 <small aria-hidden="true">A</small>

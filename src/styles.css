@@ -5,6 +5,8 @@
   --tb-font-body: Inter, "Segoe UI", Arial, sans-serif;
   --tb-font-display: Georgia, "Times New Roman", serif;
   --tb-display-caps: normal;
+  --tb-pattern: none;
+  --tb-card-deco: none;
   --tb-radius-xs: 6px;
   --tb-radius-sm: 10px;
   --tb-radius-md: 14px;
@@ -42,7 +44,7 @@
 
 /* «Обычная», тёмный режим (также значения по умолчанию). */
 :root,
-:root[data-theme="default"][data-mode="dark"] {
+[data-theme="default"][data-mode="dark"] {
   color-scheme: dark;
   --tb-canvas: #170c1a;
   --tb-glass: #2a1227d1;
@@ -90,7 +92,7 @@
 }
 
 /* «Обычная», светлый режим. */
-:root[data-theme="default"][data-mode="light"] {
+[data-theme="default"][data-mode="light"] {
   color-scheme: light;
   --tb-canvas: #edf0f4;
   --tb-glass: #fff8f1d6;
@@ -135,6 +137,453 @@
   --tb-glow-3: rgba(240, 124, 160, 0.12);
   --tb-dot: rgba(61, 21, 52, 0.08);
   --tb-minimap-mask: rgba(237, 240, 244, 0.6);
+}
+
+/* Значения, которых нет в палитрах тем: выводятся из цветов самой темы. */
+[data-mode="dark"] {
+  --tb-border-strong: color-mix(in srgb, var(--tb-text) 19%, transparent);
+  --tb-overlay: rgba(0, 0, 0, 0.55);
+  --tb-shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --tb-shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.3);
+  --tb-warning-border: color-mix(in srgb, var(--tb-warning-text) 42%, transparent);
+  --tb-minimap-mask: color-mix(in srgb, var(--tb-canvas) 60%, transparent);
+}
+
+[data-mode="light"] {
+  --tb-border-strong: color-mix(in srgb, var(--tb-text) 20%, transparent);
+  --tb-overlay: color-mix(in srgb, var(--tb-text) 32%, transparent);
+  --tb-shadow-xs: 0 2px 8px color-mix(in srgb, var(--tb-text) 12%, transparent);
+  --tb-shadow-lift: 0 14px 30px color-mix(in srgb, var(--tb-text) 20%, transparent);
+  --tb-warning-border: color-mix(in srgb, var(--tb-warning-text) 50%, transparent);
+  --tb-minimap-mask: color-mix(in srgb, var(--tb-canvas) 60%, transparent);
+}
+
+/* ---------- Сад: сочная зелень, цветы и солнце ---------- */
+[data-theme="garden"] {
+  --tb-display-scale: 0.94;
+  --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 20C4 10 10 4 20 4c0 10-6 16-16 16z'/%3E%3C/svg%3E");
+  --tb-font-display: Comfortaa, "Trebuchet MS", "Segoe UI", sans-serif;
+  --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M16 40c0-8 6-14 14-14-1 8-6 14-14 14zM44 22c4 0 8 3 8 8-4 0-8-3-8-8z' fill='black'/%3E%3C/svg%3E");
+}
+[data-theme="garden"][data-mode="dark"] {
+  --tb-canvas: #0e1a11;
+  --tb-glass: #172a1ad6;
+  --tb-surface: #172a1a;
+  --tb-surface-2: #1f3622;
+  --tb-surface-3: #2a472d;
+  --tb-text: #f2faea;
+  --tb-text-muted: #cfe3c6;
+  --tb-text-faint: #93ad8a;
+  --tb-accent: #2f7d32;
+  --tb-accent-2: #0f7a6c;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #9be08a;
+  --tb-accent-soft: #6cc35a33;
+  --tb-pink: #ff8fb8;
+  --tb-pink-soft: #ff8fb82e;
+  --tb-wheat-soft: #ffd75e2b;
+  --tb-sky-soft: #7fd3e02b;
+  --tb-mint-soft: #6cc35a2e;
+  --tb-danger: #ff8a7a;
+  --tb-on-danger: #2a0f0a;
+  --tb-danger-text: #ffab9f;
+  --tb-danger-soft: #ff8a7a33;
+  --tb-success-text: #9be08a;
+  --tb-warning-text: #ffd75e;
+  --tb-kin-line: #9ccf8c;
+  --tb-rel-line: #ff8fb8;
+  --tb-card-bg: #1a301d;
+  --tb-card-muted-bg: #152418;
+  --tb-focus: #ffd75e;
+  --tb-border: #ffffff1a;
+  --tb-shadow: 0 18px 50px rgba(2, 10, 4, 0.55), 0 2px 6px rgba(2, 10, 4, 0.35);
+  --tb-shadow-soft: 0 10px 28px rgba(2, 10, 4, 0.45);
+  --tb-accent-shadow: rgba(47, 125, 50, 0.45);
+  --tb-glow-1: rgba(108, 195, 90, 0.2);
+  --tb-glow-2: rgba(255, 215, 94, 0.12);
+  --tb-glow-3: rgba(255, 143, 184, 0.1);
+  --tb-dot: rgba(242, 250, 234, 0.07);
+}
+[data-theme="garden"][data-mode="light"] {
+  --tb-canvas: #eef7e4;
+  --tb-glass: #fbfff4d9;
+  --tb-surface: #fbfff4;
+  --tb-surface-2: #eef7de;
+  --tb-surface-3: #ddefc6;
+  --tb-text: #1f3a1a;
+  --tb-text-muted: #45603c;
+  --tb-text-faint: #66805c;
+  --tb-accent: #2e7d32;
+  --tb-accent-2: #00796b;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #2a6b2e;
+  --tb-accent-soft: #4caf5029;
+  --tb-pink: #d6407a;
+  --tb-pink-soft: #ff8fb838;
+  --tb-wheat-soft: #ffd75e59;
+  --tb-sky-soft: #7fd3e04d;
+  --tb-mint-soft: #4caf5033;
+  --tb-danger: #c0392b;
+  --tb-on-danger: #ffffff;
+  --tb-danger-text: #b03024;
+  --tb-danger-soft: #ff8a7a33;
+  --tb-success-text: #2a6b2e;
+  --tb-warning-text: #7a5600;
+  --tb-kin-line: #5b7f50;
+  --tb-rel-line: #c2306c;
+  --tb-card-bg: #ffffff;
+  --tb-card-muted-bg: #eef0ea;
+  --tb-focus: #2e7d32;
+  --tb-border: #1f3a1a1a;
+  --tb-shadow: 0 18px 50px rgba(31, 58, 26, 0.16), 0 2px 6px rgba(31, 58, 26, 0.08);
+  --tb-shadow-soft: 0 10px 26px rgba(31, 58, 26, 0.13);
+  --tb-accent-shadow: rgba(46, 125, 50, 0.35);
+  --tb-glow-1: rgba(255, 215, 94, 0.35);
+  --tb-glow-2: rgba(255, 143, 184, 0.18);
+  --tb-glow-3: rgba(127, 211, 224, 0.2);
+  --tb-dot: rgba(31, 58, 26, 0.08);
+}
+
+/* ---------- Волшебство: фиолетовый, бирюза, искры ---------- */
+[data-theme="magic"] {
+  --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z'/%3E%3C/svg%3E");
+  --tb-font-display: Philosopher, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cpath d='M18 10l2 6 6 2-6 2-2 6-2-6-6-2 6-2zM52 44l1.5 4.5L58 50l-4.5 1.5L52 56l-1.5-4.5L46 50l4.5-1.5z' fill='black'/%3E%3C/svg%3E");
+}
+[data-theme="magic"][data-mode="dark"] {
+  --tb-canvas: #120b22;
+  --tb-glass: #1f1538d6;
+  --tb-surface: #1f1538;
+  --tb-surface-2: #2a1d4a;
+  --tb-surface-3: #37265e;
+  --tb-text: #f6f0ff;
+  --tb-text-muted: #d6caf2;
+  --tb-text-faint: #9f90c4;
+  --tb-accent: #7340d9;
+  --tb-accent-2: #b0318f;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #c9b2ff;
+  --tb-accent-soft: #9a6cff38;
+  --tb-pink: #ff7ad1;
+  --tb-pink-soft: #ff7ad12e;
+  --tb-wheat-soft: #ffd86b26;
+  --tb-sky-soft: #4fe0e02b;
+  --tb-mint-soft: #4fe0b82b;
+  --tb-danger: #ff7a9a;
+  --tb-on-danger: #2a0a16;
+  --tb-danger-text: #ffa3ba;
+  --tb-danger-soft: #ff7a9a33;
+  --tb-success-text: #7ff0c8;
+  --tb-warning-text: #ffd86b;
+  --tb-kin-line: #9fd8e8;
+  --tb-rel-line: #ff7ad1;
+  --tb-card-bg: #241943;
+  --tb-card-muted-bg: #1b1433;
+  --tb-focus: #4fe0e0;
+  --tb-border: #ffffff1c;
+  --tb-shadow: 0 18px 50px rgba(6, 2, 16, 0.6), 0 2px 6px rgba(6, 2, 16, 0.35);
+  --tb-shadow-soft: 0 10px 28px rgba(6, 2, 16, 0.45);
+  --tb-accent-shadow: rgba(115, 64, 217, 0.5);
+  --tb-glow-1: rgba(154, 108, 255, 0.26);
+  --tb-glow-2: rgba(79, 224, 224, 0.12);
+  --tb-glow-3: rgba(255, 122, 209, 0.12);
+  --tb-dot: rgba(246, 240, 255, 0.08);
+}
+[data-theme="magic"][data-mode="light"] {
+  --tb-canvas: #f2ecfd;
+  --tb-glass: #fdfaffd9;
+  --tb-surface: #fdfaff;
+  --tb-surface-2: #f0e8ff;
+  --tb-surface-3: #e2d4ff;
+  --tb-text: #2a1650;
+  --tb-text-muted: #554677;
+  --tb-text-faint: #75689a;
+  --tb-accent: #6d36d6;
+  --tb-accent-2: #a62a86;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #5a2bb5;
+  --tb-accent-soft: #9a6cff26;
+  --tb-pink: #c2348f;
+  --tb-pink-soft: #ff7ad133;
+  --tb-wheat-soft: #ffd86b4d;
+  --tb-sky-soft: #4fe0e040;
+  --tb-mint-soft: #4fe0b840;
+  --tb-danger: #c02a55;
+  --tb-on-danger: #ffffff;
+  --tb-danger-text: #b0264d;
+  --tb-danger-soft: #ff7a9a33;
+  --tb-success-text: #137a5a;
+  --tb-warning-text: #7a5400;
+  --tb-kin-line: #5f7f99;
+  --tb-rel-line: #b5287f;
+  --tb-card-bg: #ffffff;
+  --tb-card-muted-bg: #efebf5;
+  --tb-focus: #6d36d6;
+  --tb-border: #2a16501a;
+  --tb-shadow: 0 18px 50px rgba(42, 22, 80, 0.16), 0 2px 6px rgba(42, 22, 80, 0.08);
+  --tb-shadow-soft: 0 10px 26px rgba(42, 22, 80, 0.13);
+  --tb-accent-shadow: rgba(109, 54, 214, 0.35);
+  --tb-glow-1: rgba(154, 108, 255, 0.2);
+  --tb-glow-2: rgba(79, 224, 224, 0.18);
+  --tb-glow-3: rgba(255, 122, 209, 0.15);
+  --tb-dot: rgba(42, 22, 80, 0.08);
+}
+
+/* ---------- Луна: ночное небо, серебро и алый ---------- */
+[data-theme="moon"] {
+  --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15 3a9 9 0 1 0 6 15A7.5 7.5 0 0 1 15 3z'/%3E%3C/svg%3E");
+  --tb-font-display: "Cormorant SC", "Cormorant", "Palatino Linotype", Georgia, serif;
+  --tb-display-caps: small-caps;
+  --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='12' cy='14' r='1.4'/%3E%3Ccircle cx='58' cy='30' r='1'/%3E%3Ccircle cx='34' cy='62' r='1.2'/%3E%3Cpath d='M66 58a8 8 0 1 1-6-12 6 6 0 0 0 6 12z'/%3E%3C/svg%3E");
+}
+[data-theme="moon"][data-mode="dark"] {
+  --tb-canvas: #0a0e1d;
+  --tb-glass: #141a31d6;
+  --tb-surface: #141a31;
+  --tb-surface-2: #1c2442;
+  --tb-surface-3: #263055;
+  --tb-text: #eef1fb;
+  --tb-text-muted: #c6cde6;
+  --tb-text-faint: #8c96b8;
+  --tb-accent: #c42f4a;
+  --tb-accent-2: #6a35b8;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #ff8fa3;
+  --tb-accent-soft: #e0485f33;
+  --tb-pink: #ff8fa3;
+  --tb-pink-soft: #ff8fa32b;
+  --tb-wheat-soft: #e6e9f526;
+  --tb-sky-soft: #7fa6ff2e;
+  --tb-mint-soft: #6fd6c62b;
+  --tb-danger: #ff9a5c;
+  --tb-on-danger: #261004;
+  --tb-danger-text: #ffb27f;
+  --tb-danger-soft: #ff9a5c33;
+  --tb-success-text: #8fe0c8;
+  --tb-warning-text: #ffd27f;
+  --tb-kin-line: #a8b4d8;
+  --tb-rel-line: #ff8fa3;
+  --tb-card-bg: #182039;
+  --tb-card-muted-bg: #121729;
+  --tb-focus: #c9d4ff;
+  --tb-border: #ffffff1a;
+  --tb-shadow: 0 18px 50px rgba(0, 2, 10, 0.65), 0 2px 6px rgba(0, 2, 10, 0.35);
+  --tb-shadow-soft: 0 10px 28px rgba(0, 2, 10, 0.5);
+  --tb-accent-shadow: rgba(196, 47, 74, 0.45);
+  --tb-glow-1: rgba(127, 166, 255, 0.18);
+  --tb-glow-2: rgba(224, 72, 95, 0.14);
+  --tb-glow-3: rgba(230, 233, 245, 0.08);
+  --tb-dot: rgba(238, 241, 251, 0.08);
+}
+[data-theme="moon"][data-mode="light"] {
+  --tb-canvas: #e9edf7;
+  --tb-glass: #fafbffd9;
+  --tb-surface: #fafbff;
+  --tb-surface-2: #eceff9;
+  --tb-surface-3: #dce2f3;
+  --tb-text: #161c36;
+  --tb-text-muted: #444c6b;
+  --tb-text-faint: #666e8f;
+  --tb-accent: #b0253f;
+  --tb-accent-2: #5a2fa8;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #a12139;
+  --tb-accent-soft: #e0485f24;
+  --tb-pink: #c2304d;
+  --tb-pink-soft: #ff8fa333;
+  --tb-wheat-soft: #c7cde259;
+  --tb-sky-soft: #7fa6ff33;
+  --tb-mint-soft: #6fd6c633;
+  --tb-danger: #a8420f;
+  --tb-on-danger: #ffffff;
+  --tb-danger-text: #9a3c0c;
+  --tb-danger-soft: #ff9a5c33;
+  --tb-success-text: #1d6f5a;
+  --tb-warning-text: #7a5200;
+  --tb-kin-line: #5e6a92;
+  --tb-rel-line: #b0253f;
+  --tb-card-bg: #ffffff;
+  --tb-card-muted-bg: #e9ebf1;
+  --tb-focus: #3c4fb8;
+  --tb-border: #161c361a;
+  --tb-shadow: 0 18px 50px rgba(22, 28, 54, 0.16), 0 2px 6px rgba(22, 28, 54, 0.08);
+  --tb-shadow-soft: 0 10px 26px rgba(22, 28, 54, 0.13);
+  --tb-accent-shadow: rgba(176, 37, 63, 0.3);
+  --tb-glow-1: rgba(127, 166, 255, 0.22);
+  --tb-glow-2: rgba(224, 72, 95, 0.1);
+  --tb-glow-3: rgba(255, 255, 255, 0.7);
+  --tb-dot: rgba(22, 28, 54, 0.08);
+}
+
+/* ---------- Город: неон, розовый и бирюзовый ---------- */
+[data-theme="city"] {
+  --tb-display-scale: 0.84;
+  --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l10 10-10 10L2 12z'/%3E%3C/svg%3E");
+  --tb-font-display: Unbounded, Bahnschrift, "Segoe UI", system-ui, sans-serif;
+  --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M0 47.5h48M47.5 0v48' stroke='black' fill='none'/%3E%3C/svg%3E");
+}
+[data-theme="city"][data-mode="dark"] {
+  --tb-canvas: #0c0c16;
+  --tb-glass: #171728d6;
+  --tb-surface: #171728;
+  --tb-surface-2: #212138;
+  --tb-surface-3: #2c2c4a;
+  --tb-text: #f4f4ff;
+  --tb-text-muted: #cfcfe8;
+  --tb-text-faint: #9393b5;
+  --tb-accent: #d4136b;
+  --tb-accent-2: #6a2ee0;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #ff7ab3;
+  --tb-accent-soft: #ff3d8b33;
+  --tb-pink: #ff5fa2;
+  --tb-pink-soft: #ff3d8b2e;
+  --tb-wheat-soft: #ffe04a26;
+  --tb-sky-soft: #22d3ee2b;
+  --tb-mint-soft: #3ef0a82b;
+  --tb-danger: #ff6b5f;
+  --tb-on-danger: #220806;
+  --tb-danger-text: #ff9a90;
+  --tb-danger-soft: #ff6b5f33;
+  --tb-success-text: #5ff0b0;
+  --tb-warning-text: #ffe04a;
+  --tb-kin-line: #22d3ee;
+  --tb-rel-line: #ff5fa2;
+  --tb-card-bg: #1a1a2e;
+  --tb-card-muted-bg: #141422;
+  --tb-focus: #22d3ee;
+  --tb-border: #ffffff1c;
+  --tb-shadow: 0 18px 50px rgba(0, 0, 8, 0.6), 0 2px 6px rgba(0, 0, 8, 0.35);
+  --tb-shadow-soft: 0 10px 28px rgba(0, 0, 8, 0.45);
+  --tb-accent-shadow: rgba(255, 61, 139, 0.5);
+  --tb-glow-1: rgba(255, 61, 139, 0.2);
+  --tb-glow-2: rgba(34, 211, 238, 0.16);
+  --tb-glow-3: rgba(106, 46, 224, 0.18);
+  --tb-dot: rgba(244, 244, 255, 0.06);
+}
+[data-theme="city"][data-mode="light"] {
+  --tb-canvas: #f0f1f7;
+  --tb-glass: #ffffffd9;
+  --tb-surface: #ffffff;
+  --tb-surface-2: #f1f1f8;
+  --tb-surface-3: #e3e3f0;
+  --tb-text: #16162a;
+  --tb-text-muted: #45455f;
+  --tb-text-faint: #676782;
+  --tb-accent: #c70f60;
+  --tb-accent-2: #5b23c9;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #b00d55;
+  --tb-accent-soft: #ff3d8b1f;
+  --tb-pink: #c70f60;
+  --tb-pink-soft: #ff3d8b26;
+  --tb-wheat-soft: #ffe04a4d;
+  --tb-sky-soft: #22d3ee33;
+  --tb-mint-soft: #3ef0a833;
+  --tb-danger: #c62a1f;
+  --tb-on-danger: #ffffff;
+  --tb-danger-text: #b3241a;
+  --tb-danger-soft: #ff6b5f2e;
+  --tb-success-text: #0f7a4f;
+  --tb-warning-text: #7a5a00;
+  --tb-kin-line: #0b7f93;
+  --tb-rel-line: #c70f60;
+  --tb-card-bg: #ffffff;
+  --tb-card-muted-bg: #ececf2;
+  --tb-focus: #5b23c9;
+  --tb-border: #16162a1a;
+  --tb-shadow: 0 18px 50px rgba(22, 22, 42, 0.16), 0 2px 6px rgba(22, 22, 42, 0.08);
+  --tb-shadow-soft: 0 10px 26px rgba(22, 22, 42, 0.12);
+  --tb-accent-shadow: rgba(199, 15, 96, 0.35);
+  --tb-glow-1: rgba(255, 61, 139, 0.14);
+  --tb-glow-2: rgba(34, 211, 238, 0.16);
+  --tb-glow-3: rgba(255, 224, 74, 0.18);
+  --tb-dot: rgba(22, 22, 42, 0.07);
+}
+
+/* ---------- Королевство: бордо, золото и бархат ---------- */
+[data-theme="kingdom"] {
+  --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 18h18l-2-10-5 4-2-7-2 7-5-4z'/%3E%3C/svg%3E");
+  --tb-font-display: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
+  --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M28 8l6 10 10 2-8 7 2 11-10-5-10 5 2-11-8-7 10-2z' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E");
+}
+[data-theme="kingdom"][data-mode="dark"] {
+  --tb-canvas: #160b10;
+  --tb-glass: #26131cd6;
+  --tb-surface: #26131c;
+  --tb-surface-2: #321a25;
+  --tb-surface-3: #422231;
+  --tb-text: #fff6e3;
+  --tb-text-muted: #e8d6c0;
+  --tb-text-faint: #b09a8c;
+  --tb-accent: #a3234f;
+  --tb-accent-2: #7a3f12;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #f2c75c;
+  --tb-accent-soft: #f2c75c26;
+  --tb-pink: #ff8fae;
+  --tb-pink-soft: #e04a7a33;
+  --tb-wheat-soft: #f2c75c2b;
+  --tb-sky-soft: #8fb5e02b;
+  --tb-mint-soft: #6fd6a82b;
+  --tb-danger: #ff8a70;
+  --tb-on-danger: #2a0d06;
+  --tb-danger-text: #ffaa95;
+  --tb-danger-soft: #ff8a7033;
+  --tb-success-text: #9ee0b0;
+  --tb-warning-text: #f2c75c;
+  --tb-kin-line: #d9b56a;
+  --tb-rel-line: #ff8fae;
+  --tb-card-bg: #2c1620;
+  --tb-card-muted-bg: #20111a;
+  --tb-focus: #f2c75c;
+  --tb-border: #f2c75c26;
+  --tb-shadow: 0 18px 50px rgba(10, 2, 5, 0.6), 0 2px 6px rgba(10, 2, 5, 0.35);
+  --tb-shadow-soft: 0 10px 28px rgba(10, 2, 5, 0.45);
+  --tb-accent-shadow: rgba(163, 35, 79, 0.5);
+  --tb-glow-1: rgba(242, 199, 92, 0.14);
+  --tb-glow-2: rgba(163, 35, 79, 0.22);
+  --tb-glow-3: rgba(255, 143, 174, 0.08);
+  --tb-dot: rgba(242, 199, 92, 0.09);
+}
+[data-theme="kingdom"][data-mode="light"] {
+  --tb-canvas: #f6efe2;
+  --tb-glass: #fffaf0d9;
+  --tb-surface: #fffaf0;
+  --tb-surface-2: #f8ecd4;
+  --tb-surface-3: #f0dcb4;
+  --tb-text: #3a0f1f;
+  --tb-text-muted: #634552;
+  --tb-text-faint: #8a6a72;
+  --tb-accent: #8c1d43;
+  --tb-accent-2: #7a4a0e;
+  --tb-on-accent: #ffffff;
+  --tb-accent-text: #8c1d43;
+  --tb-accent-soft: #8c1d431f;
+  --tb-pink: #b52f5c;
+  --tb-pink-soft: #e04a7a26;
+  --tb-wheat-soft: #f2c75c66;
+  --tb-sky-soft: #8fb5e040;
+  --tb-mint-soft: #6fd6a840;
+  --tb-danger: #b23a14;
+  --tb-on-danger: #ffffff;
+  --tb-danger-text: #a3340f;
+  --tb-danger-soft: #ff8a7033;
+  --tb-success-text: #22704a;
+  --tb-warning-text: #7a5000;
+  --tb-kin-line: #8a6a2a;
+  --tb-rel-line: #b52f5c;
+  --tb-card-bg: #fffdf7;
+  --tb-card-muted-bg: #efe8e0;
+  --tb-focus: #8c1d43;
+  --tb-border: #3a0f1f1f;
+  --tb-shadow: 0 18px 50px rgba(58, 15, 31, 0.16), 0 2px 6px rgba(58, 15, 31, 0.08);
+  --tb-shadow-soft: 0 10px 26px rgba(58, 15, 31, 0.13);
+  --tb-accent-shadow: rgba(140, 29, 67, 0.32);
+  --tb-glow-1: rgba(242, 199, 92, 0.35);
+  --tb-glow-2: rgba(140, 29, 67, 0.1);
+  --tb-glow-3: rgba(255, 255, 255, 0.6);
+  --tb-dot: rgba(58, 15, 31, 0.08);
 }
 
 /* ---------- Основа ---------- */
@@ -224,6 +673,18 @@ kbd {
 
 .tb-field .react-flow {
   background: transparent;
+}
+
+/* Узор темы поверх поля: едва заметный, цвета текста; выключается в настройках */
+:root:not([data-theme="default"]):not([data-pattern="off"]) .tb-field::before {
+  position: absolute;
+  inset: 0;
+  background: var(--tb-text);
+  content: "";
+  opacity: 0.05;
+  pointer-events: none;
+  -webkit-mask: var(--tb-pattern) repeat;
+  mask: var(--tb-pattern) repeat;
 }
 
 .tb-field .react-flow__background pattern circle {
@@ -1056,6 +1517,21 @@ button.tb-dyn-btn.is-open {
   transition: none;
 }
 
+/* Украшение темы на верхнем краю карточки: листик, искра, полумесяц, ромб, корона */
+:root:not([data-theme="default"]) .tb-card::after {
+  position: absolute;
+  top: -8px;
+  right: 28px;
+  width: 16px;
+  height: 16px;
+  background: var(--tb-accent-2);
+  content: "";
+  opacity: 0.75;
+  pointer-events: none;
+  -webkit-mask: var(--tb-card-deco) center / contain no-repeat;
+  mask: var(--tb-card-deco) center / contain no-repeat;
+}
+
 .tb-card.status-dead {
   background: var(--tb-card-muted-bg);
 }
@@ -1082,7 +1558,7 @@ button.tb-dyn-btn.is-open {
 
 .tb-card-name {
   overflow: hidden;
-  font-size: 15.5px;
+  font-size: calc(15.5px * var(--tb-display-scale, 1));
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1578,9 +2054,15 @@ button.tb-dyn-btn.is-open {
   }
 }
 
-/* Segoe UI includes the Komi Cyrillic glyphs, including precomposed Ӧ ӧ. */
+/* Segoe UI includes the Komi Cyrillic glyphs, including precomposed Ӧ ӧ.
+   Of the theme heading fonts, Georgia, Unbounded and Playfair Display lack them. */
 :root:lang(koi) {
   --tb-font-body: "Segoe UI", Arial, sans-serif;
+}
+
+:root:lang(koi)[data-theme="default"],
+:root:lang(koi)[data-theme="city"],
+:root:lang(koi)[data-theme="kingdom"] {
   --tb-font-display: "Segoe UI", Arial, sans-serif;
 }
 
@@ -3184,7 +3666,23 @@ input[type="range"] {
 
 .tb-theme-name {
   padding: 0 6px 4px;
-  font-weight: 700;
+  overflow: hidden;
+  font-family: var(--tb-font-display);
+  font-variant: var(--tb-display-caps);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Образец показывает узор своей темы */
+.tb-theme-tile:not([data-theme="default"]) .tb-theme-preview::before {
+  position: absolute;
+  inset: 0;
+  background: var(--tb-text);
+  content: "";
+  opacity: 0.08;
+  -webkit-mask: var(--tb-pattern) repeat;
+  mask: var(--tb-pattern) repeat;
 }
 
 .tb-theme-preview {
