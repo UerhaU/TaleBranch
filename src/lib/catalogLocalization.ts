@@ -1,5 +1,3 @@
-import translations from "../data/catalog-locales.json";
-import authored from "../data/catalog-authored.json";
 import { catalogEntry, gameCatalog, type CatalogEntry, type CatalogKind } from "./catalog";
 import { translateMessage, translateSystemValue, type LocaleCode } from "../i18n";
 
@@ -13,18 +11,60 @@ interface Dictionary {
   categories: Record<string, string>;
   packs: Record<string, string>;
 }
-const official = translations as Record<string, Dictionary>;
-const custom = authored as Record<string, { labels: Record<string, string>; categories: Record<string, string> }>;
+/** Catalog translations of one language, made by the `catalog-chunks` plugin in vite.config.ts. */
+export interface CatalogTexts {
+  official: Dictionary | null;
+  authored: { labels: Record<string, string>; categories: Record<string, string> } | null;
+  englishBreeds: Record<string, string>;
+  englishPacks: Record<string, string>;
+}
+
+// Each language is a separate file; only the chosen one is loaded.
+const loaders: Record<LocaleCode, () => Promise<{ default: CatalogTexts }>> = {
+  ru: () => import("virtual:catalog-texts/ru"),
+  en: () => import("virtual:catalog-texts/en"),
+  de: () => import("virtual:catalog-texts/de"),
+  fr: () => import("virtual:catalog-texts/fr"),
+  es: () => import("virtual:catalog-texts/es"),
+  "pt-BR": () => import("virtual:catalog-texts/pt-BR"),
+  "zh-CN": () => import("virtual:catalog-texts/zh-CN"),
+  sr: () => import("virtual:catalog-texts/sr"),
+  koi: () => import("virtual:catalog-texts/koi"),
+};
+const loaded = new Map<LocaleCode, CatalogTexts>();
+const loading = new Map<LocaleCode, Promise<void>>();
+export const catalogTextsLoaded = (locale: LocaleCode) => loaded.has(locale);
+/** Brings in the catalog translations of one language once; later calls reuse the same loading. */
+export function loadCatalogTexts(locale: LocaleCode): Promise<void> {
+  let promise = loading.get(locale);
+  if (!promise) {
+    promise = loaders[locale]().then(
+      ({ default: texts }) => {
+        loaded.set(locale, texts);
+      },
+      (error: unknown) => {
+        loading.delete(locale);
+        throw error;
+      },
+    );
+    loading.set(locale, promise);
+  }
+  return promise;
+}
+const official = (locale: LocaleCode) => loaded.get(locale)?.official;
+const custom = (locale: LocaleCode) => loaded.get(locale)?.authored;
 
 /** Language is a view preference. Stored IDs, rules and user-written text stay intact. */
 export function localizedCatalogEntry(kind: CatalogKind, entry: CatalogEntry, locale: LocaleCode): CatalogEntry {
   if (kind === "ages") return { ...entry, label: translateSystemValue(locale, entry.label) };
   const key = `${kind}:${entry.id}`;
-  const source = official[locale]?.entries[key];
+  const source = official(locale)?.entries[key];
   // International breed names keep the game's English spelling where the game
   // has no language pack. Do not manufacture an "official" breed translation.
   const label =
-    source?.label ?? custom[locale]?.labels[key] ?? (kind === "breeds" ? official.en.entries[key]?.label : undefined);
+    source?.label ??
+    custom(locale)?.labels[key] ??
+    (kind === "breeds" ? loaded.get(locale)?.englishBreeds[key] : undefined);
   return {
     ...entry,
     label: label ?? entry.label,
@@ -66,12 +106,12 @@ export function catalogLabel(kind: CatalogKind, id: string, locale: LocaleCode):
   return entry && localizedCatalogEntry(kind, entry, locale).label;
 }
 export function localizedCatalogCategory(category: string, locale: LocaleCode): string {
-  return official[locale]?.categories[category] ?? custom[locale]?.categories[category] ?? category;
+  return official(locale)?.categories[category] ?? custom(locale)?.categories[category] ?? category;
 }
 export function localizedPackLabel(id: string, locale: LocaleCode): string {
   return (
-    official[locale]?.packs[id] ??
-    official.en?.packs[id] ??
+    official(locale)?.packs[id] ??
+    loaded.get(locale)?.englishPacks[id] ??
     gameCatalog.packs.find((pack) => pack.id === id)?.label ??
     id
   );

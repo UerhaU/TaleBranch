@@ -13,6 +13,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Новая папка с древом",
     openDynastyHint: "Династия на этом компьютере",
     importDynastyHint: "Файл .dynasty-tree",
+    catalogLoading: "Загружаю справочник…",
   },
   en: {
     add: "Add",
@@ -27,6 +28,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "A new folder with a tree",
     openDynastyHint: "A dynasty on this computer",
     importDynastyHint: ".dynasty-tree file",
+    catalogLoading: "Loading the catalog…",
   },
   de: {
     add: "Hinzufügen",
@@ -41,6 +43,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Neuer Ordner mit Stammbaum",
     openDynastyHint: "Eine Dynastie auf diesem Computer",
     importDynastyHint: ".dynasty-tree-Datei",
+    catalogLoading: "Katalog wird geladen…",
   },
   fr: {
     add: "Ajouter",
@@ -55,6 +58,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Un nouveau dossier avec un arbre",
     openDynastyHint: "Une dynastie sur cet ordinateur",
     importDynastyHint: "Fichier .dynasty-tree",
+    catalogLoading: "Chargement du catalogue…",
   },
   es: {
     add: "Añadir",
@@ -69,6 +73,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Una carpeta nueva con un árbol",
     openDynastyHint: "Una dinastía en este equipo",
     importDynastyHint: "Archivo .dynasty-tree",
+    catalogLoading: "Cargando el catálogo…",
   },
   "pt-BR": {
     add: "Adicionar",
@@ -83,6 +88,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Uma nova pasta com uma árvore",
     openDynastyHint: "Uma dinastia neste computador",
     importDynastyHint: "Arquivo .dynasty-tree",
+    catalogLoading: "Carregando o catálogo…",
   },
   "zh-CN": {
     add: "添加",
@@ -97,6 +103,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "新建带家谱的文件夹",
     openDynastyHint: "此电脑上的家族",
     importDynastyHint: ".dynasty-tree 文件",
+    catalogLoading: "正在加载目录…",
   },
   sr: {
     add: "Додај",
@@ -111,6 +118,7 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Нова фасцикла са стаблом",
     openDynastyHint: "Династија на овом рачунару",
     importDynastyHint: "Датотека .dynasty-tree",
+    catalogLoading: "Учитавам каталог…",
   },
   koi: {
     add: "Содтыны",
@@ -125,5 +133,6 @@ export const shellMessages: Record<string, Record<string, string>> = {
     createDynastyHint: "Выль папка пуӧн",
     openDynastyHint: "Династия тайӧ компьютерын",
     importDynastyHint: ".dynasty-tree файл",
+    catalogLoading: "Справочник пыртӧм…",
   },
 };

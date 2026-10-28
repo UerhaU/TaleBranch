@@ -25,6 +25,7 @@ import { CharacterMenuItems, type CharacterActions } from "./shell/CharacterMenu
 import { PanelShell } from "./shell/PanelShell";
 import { Popover } from "./shell/Popover";
 import { ageEntry, catalogEntry } from "../lib/catalog";
+import { useCatalog } from "../hooks/useCatalog";
 import { genderChoice, genderChoices } from "../lib/gender";
 
 const tabs = [
@@ -96,7 +97,11 @@ export function Inspector({
   onSelect?: (id: string) => void;
   actions?: CharacterActions;
 }) {
-  const { t, valueLabel } = useI18n();
+  const { t, valueLabel, locale } = useI18n();
+  // Catalog lists arrive a moment after the panel opens; until then old texts are not compared with them.
+  const catalogLoaded = useCatalog(locale);
+  const unmatched = (values: string[], known: (value: string) => boolean) =>
+    catalogLoaded ? values.filter((value) => !known(value)) : [];
   const [tab, setTab] = useState<(typeof tabs)[number][0]>("main");
   const [activePhotoStage, setActivePhotoStage] = useState(character.lifeStage);
   const [showMore, setShowMore] = useState(false);
@@ -222,8 +227,8 @@ export function Inspector({
     catalogFacts.push(["neutered", t(catalog.neutered)]);
 
   const traitIds = catalog?.traitIds ?? [];
-  const legacyTraits = character.traits.filter(
-    (value) => !traitIds.some((id) => catalogEntry("traits", id)?.label === value),
+  const legacyTraits = unmatched(character.traits, (value) =>
+    traitIds.some((id) => catalogEntry("traits", id)?.label === value),
   );
   const hasGoal = character.type !== "pet" && Boolean(catalog?.aspirationId || character.aspiration);
   const links = [
@@ -251,11 +256,11 @@ export function Inspector({
 
   const skills = catalog?.skills ?? [];
   const preferences = catalog?.preferences ?? [];
-  const legacySkills = character.skills.filter(
-    (value) => !skills.some((item) => catalogEntry("skills", item.id)?.label === value),
+  const legacySkills = unmatched(character.skills, (value) =>
+    skills.some((item) => catalogEntry("skills", item.id)?.label === value),
   );
-  const legacyPreferences = character.preferences.filter(
-    (value) => !preferences.some((item) => catalogEntry("preferences", item.id)?.label === value),
+  const legacyPreferences = unmatched(character.preferences, (value) =>
+    preferences.some((item) => catalogEntry("preferences", item.id)?.label === value),
   );
   const traitsEmpty =
     !traitIds.length &&

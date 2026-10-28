@@ -5,9 +5,9 @@
   "description": "Offline desktop editor for character family trees, relationships, and life stories — first beta candidate.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "dev": "vite --config vite.config.ts",
+    "build": "tsc -b && vite build --config vite.config.ts",
+    "preview": "vite preview --config vite.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{js,cjs,mjs}\" vite.config.ts \"tsconfig*.json\" index.html .prettierrc.json",

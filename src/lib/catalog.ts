@@ -1,4 +1,4 @@
-import data from "../data/game-catalog.json";
+import core from "virtual:catalog-core";
 import type { Character, CharacterCatalog, CharacterType } from "../types";
 import { makeId } from "./id";
 
@@ -23,21 +23,55 @@ export interface CatalogEntry {
   careerDetails?: string;
   wiki?: string;
 }
-export const gameCatalog = data as unknown as {
+/** The part of the catalog that is always at hand: ages for cards on the field, packs and species. */
+export interface CatalogCore {
   version: string;
   packs: { id: string; label: string }[];
   species: { id: string; label: string; type: string }[];
-  entries: Record<CatalogKind, CatalogEntry[]>;
+  ages: CatalogEntry[];
+}
+const loadingKinds = ["traits", "aspirations", "breeds", "skills", "preferences", "careers", "occults", "deathCauses"];
+/**
+ * Ages are here from the start. The other lists are empty until `loadCatalogEntries()`
+ * brings them in, so the program starts without the large catalog.
+ */
+export const gameCatalog = {
+  version: core.version,
+  packs: core.packs,
+  species: core.species,
+  entries: {
+    ...Object.fromEntries(loadingKinds.map((kind) => [kind, [] as CatalogEntry[]])),
+    ages: core.ages,
+  } as Record<CatalogKind, CatalogEntry[]>,
 };
 // Keep the stable game ID while using the separate age requested by the owner.
 const youngAge = gameCatalog.entries.ages.find((entry) => entry.id === "human:youngadult");
 if (youngAge) youngAge.label = "Молодой";
-const indexes = Object.fromEntries(
-  Object.entries(gameCatalog.entries).map(([kind, entries]) => [
-    kind,
-    new Map(entries.map((entry) => [entry.id, entry])),
-  ]),
-) as Record<CatalogKind, Map<string, CatalogEntry>>;
+const indexes = {} as Record<CatalogKind, Map<string, CatalogEntry>>;
+const reindex = () =>
+  Object.entries(gameCatalog.entries).forEach(([kind, entries]) => {
+    indexes[kind as CatalogKind] = new Map(entries.map((entry) => [entry.id, entry]));
+  });
+reindex();
+
+let entriesLoaded = false;
+let entriesLoading: Promise<void> | undefined;
+export const catalogEntriesLoaded = () => entriesLoaded;
+/** Brings in traits, skills and the other lists once; later calls reuse the same loading. */
+export function loadCatalogEntries(): Promise<void> {
+  entriesLoading ??= import("virtual:catalog-entries").then(
+    ({ default: entries }) => {
+      Object.assign(gameCatalog.entries, entries);
+      reindex();
+      entriesLoaded = true;
+    },
+    (error: unknown) => {
+      entriesLoading = undefined;
+      throw error;
+    },
+  );
+  return entriesLoading;
+}
 export const catalogEntry = (kind: CatalogKind, id?: string) => (id ? indexes[kind].get(id) : undefined);
 export const packLabel = (code: string) => gameCatalog.packs.find((pack) => pack.id === code)?.label ?? code;
 export const iconUrl = (file?: string) =>

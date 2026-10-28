@@ -4,6 +4,7 @@ import { CatalogPicker, GameIcon } from "./CatalogPicker";
 import { Modal } from "./Modal";
 import { useI18n } from "../i18n";
 import { localizedCatalogEntry, localizedPackLabel } from "../lib/catalogLocalization";
+import { useCatalogOnce } from "../hooks/useCatalog";
 
 export const catalogTitles: Record<CatalogKind, string> = {
   traits: "traits",
@@ -17,6 +18,21 @@ export const catalogTitles: Record<CatalogKind, string> = {
   ages: "lifeStages",
 };
 export function CatalogBrowser({ onClose }: { onClose: () => void }) {
+  const { t, locale } = useI18n();
+  if (!useCatalogOnce(locale))
+    return (
+      <Modal title={t("gameCatalogs")} subtitle={t("gameCatalogsHint")} onClose={onClose} wide>
+        <div className="modal-body catalog-browser">
+          <p className="empty-inline" role="status" aria-busy="true">
+            {t("catalogLoading")}
+          </p>
+        </div>
+      </Modal>
+    );
+  return <CatalogBrowserContent onClose={onClose} />;
+}
+
+function CatalogBrowserContent({ onClose }: { onClose: () => void }) {
   const { t, locale } = useI18n();
   const [kind, setKind] = useState<CatalogKind>("traits"),
     [selected, setSelected] = useState<string[]>([]);

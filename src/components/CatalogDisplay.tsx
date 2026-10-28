@@ -3,6 +3,7 @@ import { catalogEntry, entryForLegacy, type CatalogKind } from "../lib/catalog";
 import { GameIcon } from "./CatalogPicker";
 import { useI18n } from "../i18n";
 import { localizedCatalogEntry } from "../lib/catalogLocalization";
+import { useCatalog } from "../hooks/useCatalog";
 
 export function CatalogValue({
   kind,
@@ -18,6 +19,15 @@ export function CatalogValue({
   suffix?: string;
 }) {
   const { t, locale } = useI18n();
+  // Ages are always at hand (cards on the field); other lists arrive with the catalog.
+  const ready = useCatalog(locale, kind !== "ages");
+  if (kind !== "ages" && !ready)
+    return (
+      <span className="catalog-display" aria-busy="true" title={t("catalogLoading")}>
+        <GameIcon />
+        <span>{id ? "…" : (value ?? "…")}</span>
+      </span>
+    );
   const original = catalogEntry(kind, id) ?? (value ? entryForLegacy(kind, value, character) : undefined);
   const entry = original && localizedCatalogEntry(kind, original, locale);
   return (
@@ -44,9 +54,11 @@ export function CatalogValues({
   character: Character;
   suffixes?: Record<string, string>;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const ready = useCatalog(locale, kind !== "ages");
   const represented = new Set(ids.map((id) => catalogEntry(kind, id)?.label));
-  const custom = legacy.filter((value) => !represented.has(value));
+  // Until the catalog is here it is unknown which old texts repeat chosen entries.
+  const custom = ready || kind === "ages" ? legacy.filter((value) => !represented.has(value)) : [];
   return (
     <div className="large-chips catalog-display-list">
       {ids.map((id) => (

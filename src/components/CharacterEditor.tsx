@@ -22,6 +22,7 @@ import { PanelShell } from "./shell/PanelShell";
 import { displayColor } from "../lib/colors";
 import { useI18n } from "../i18n";
 import { localizedCatalogEntry } from "../lib/catalogLocalization";
+import { useCatalogOnce } from "../hooks/useCatalog";
 
 /** The bright palette of the theme; the saved value is the hex color. */
 const colors = [
@@ -54,22 +55,43 @@ function ListInput({ value, onChange }: { value: string[]; onChange: (value: str
   );
 }
 
-/** Editing or creating a character inside the right panel, with every field of the profile. */
-export function CharacterEditor({
-  character,
-  initialType = "sim",
-  initialLastName,
-  ownerCandidates = [],
-  onClose,
-  onSave,
-}: {
+type CharacterEditorProps = {
   character?: Character;
   initialType?: CharacterType;
   initialLastName?: string;
   ownerCandidates?: Character[];
   onClose: () => void;
   onSave: (character: Character) => void;
-}) {
+};
+
+/** Editing or creating a character inside the right panel, with every field of the profile. */
+export function CharacterEditor(props: CharacterEditorProps) {
+  const { t, locale } = useI18n();
+  // The form reads the game catalog from its first moment, so it opens once the catalog is here.
+  if (useCatalogOnce(locale)) return <CharacterEditorForm {...props} />;
+  return (
+    <PanelShell
+      className="is-editing"
+      color={props.character?.color ?? colors[0][0]}
+      label={props.character ? t("editCharacter") : t("newCharacter")}
+      closeLabel={`${t("cancel")} (Esc)`}
+      onClose={props.onClose}
+    >
+      <p className="empty-inline" role="status" aria-busy="true">
+        {t("catalogLoading")}
+      </p>
+    </PanelShell>
+  );
+}
+
+function CharacterEditorForm({
+  character,
+  initialType = "sim",
+  initialLastName,
+  ownerCandidates = [],
+  onClose,
+  onSave,
+}: CharacterEditorProps) {
   const { t, valueLabel, locale } = useI18n();
   const displayEntry = (kind: Parameters<typeof catalogEntry>[0], id: string) => {
     const entry = catalogEntry(kind, id);
