@@ -1,4 +1,6 @@
+mod custom_styles;
 mod desktop_storage;
+use custom_styles::{CustomStyles, StyleList};
 use desktop_storage::{Directory, Recent, Request, Storage, StorageError};
 use std::{path::PathBuf, sync::Arc};
 use tauri_plugin_dialog::DialogExt;
@@ -196,6 +198,20 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// The user's own styles and themes in `TaleBranch-data/snippets` and `TaleBranch-data/themes`.
+#[tauri::command]
+fn custom_styles_list(styles: tauri::State<'_, CustomStyles>) -> desktop_storage::Result<StyleList> {
+    styles.list()
+}
+#[tauri::command]
+fn custom_style_read(
+    kind: String,
+    file: String,
+    styles: tauri::State<'_, CustomStyles>,
+) -> desktop_storage::Result<String> {
+    styles.read(&kind, &file)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let data = portable_data().expect("Could not locate the portable application directory");
@@ -204,6 +220,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(storage)
+        .manage(CustomStyles::new(&data))
         .setup(move |app| {
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
                 .title("TaleBranch")
@@ -223,7 +240,9 @@ pub fn run() {
             desktop_clear_last_folder,
             desktop_remember_folder,
             desktop_forget_folder,
-            desktop_save_export
+            desktop_save_export,
+            custom_styles_list,
+            custom_style_read
         ])
         .run(tauri::generate_context!())
         .expect("failed to run TaleBranch");

@@ -14,6 +14,7 @@ export const shortcutList: Array<[string[], string]> = [
   [["Esc"], "kbClose"],
   [["Ctrl", ","], "settings"],
   [["Ctrl", "S"], "kbSave"],
+  [["Ctrl", "Shift", "0"], "kbSafeStyles"],
 ];
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {

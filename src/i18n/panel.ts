@@ -1,6 +1,22 @@
 /** Labels of the character panel, the right-click menus, the settings window and the keyboard shortcuts. */
 export const panelMessages: Record<string, Record<string, string>> = {
   ru: {
+    customStyles: "Свои стили",
+    customStylesOff: "Свои стили и темы выключены до перезапуска. Вернуть: Настройки → Оформление.",
+    customStylesOffTitle: "Свои стили временно выключены",
+    customStylesOffHint:
+      "Вы нажали Ctrl Shift 0. Если какой-то стиль сломал вид, выключите его ниже, затем включите стили снова.",
+    customStylesRestore: "Включить снова",
+    customStylesHint:
+      "Положите файл .css в папку snippets — он появится здесь с переключателем. Файлы .css из папки themes появятся среди тем.",
+    customStylesEmpty: "Своих стилей пока нет.",
+    customStylesError: "Не удалось прочитать папку со стилями.",
+    customStylesFolder: "Папки со стилями и темами",
+    customStylesRefresh: "Обновить список",
+    customCssLabel: "Свой CSS",
+    customCssHint:
+      "Меняется сразу. Картинки и шрифты из интернета не загружаются. Если вид сломался, нажмите Ctrl Shift 0.",
+    kbSafeStyles: "Временно выключить свои стили",
     themeGarden: "Сад",
     themeMagic: "Волшебство",
     themeMoon: "Луна",
@@ -51,6 +67,22 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Сохранить сейчас",
   },
   en: {
+    customStyles: "Custom styles",
+    customStylesOff: "Custom styles and themes are off until restart. To bring them back: Settings → Appearance.",
+    customStylesOffTitle: "Custom styles are temporarily off",
+    customStylesOffHint:
+      "You pressed Ctrl Shift 0. If a style broke the look, switch it off below, then turn styles back on.",
+    customStylesRestore: "Turn back on",
+    customStylesHint:
+      "Put a .css file into the snippets folder and it appears here with a switch. .css files from the themes folder appear among the themes.",
+    customStylesEmpty: "No custom styles yet.",
+    customStylesError: "Could not read the styles folder.",
+    customStylesFolder: "Folders with styles and themes",
+    customStylesRefresh: "Refresh list",
+    customCssLabel: "Custom CSS",
+    customCssHint:
+      "Applies right away. Pictures and fonts from the internet are not loaded. If the look breaks, press Ctrl Shift 0.",
+    kbSafeStyles: "Temporarily turn off custom styles",
     themeGarden: "Garden",
     themeMagic: "Magic",
     themeMoon: "Moon",
@@ -101,6 +133,22 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Save now",
   },
   de: {
+    customStyles: "Eigene Stile",
+    customStylesOff: "Eigene Stile und Themen sind bis zum Neustart aus. Zurückholen: Einstellungen → Darstellung.",
+    customStylesOffTitle: "Eigene Stile sind vorübergehend aus",
+    customStylesOffHint:
+      "Du hast Strg Umschalt 0 gedrückt. Wenn ein Stil die Darstellung zerstört hat, schalte ihn unten aus und aktiviere die Stile dann wieder.",
+    customStylesRestore: "Wieder einschalten",
+    customStylesHint:
+      "Lege eine .css-Datei in den Ordner snippets – sie erscheint hier mit einem Schalter. .css-Dateien aus dem Ordner themes erscheinen bei den Themen.",
+    customStylesEmpty: "Noch keine eigenen Stile.",
+    customStylesError: "Der Ordner mit den Stilen konnte nicht gelesen werden.",
+    customStylesFolder: "Ordner für Stile und Themen",
+    customStylesRefresh: "Liste aktualisieren",
+    customCssLabel: "Eigenes CSS",
+    customCssHint:
+      "Wirkt sofort. Bilder und Schriften aus dem Internet werden nicht geladen. Wenn die Darstellung kaputt ist, drücke Strg Umschalt 0.",
+    kbSafeStyles: "Eigene Stile vorübergehend ausschalten",
     themeGarden: "Garten",
     themeMagic: "Magie",
     themeMoon: "Mond",
@@ -151,6 +199,23 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Jetzt speichern",
   },
   fr: {
+    customStyles: "Styles personnels",
+    customStylesOff:
+      "Styles et thèmes personnels désactivés jusqu’au redémarrage. Pour les rétablir : Réglages → Apparence.",
+    customStylesOffTitle: "Styles personnels désactivés temporairement",
+    customStylesOffHint:
+      "Vous avez appuyé sur Ctrl Maj 0. Si un style a cassé l’affichage, désactivez-le ci-dessous puis réactivez les styles.",
+    customStylesRestore: "Réactiver",
+    customStylesHint:
+      "Placez un fichier .css dans le dossier snippets : il apparaît ici avec un interrupteur. Les fichiers .css du dossier themes apparaissent parmi les thèmes.",
+    customStylesEmpty: "Aucun style personnel pour l’instant.",
+    customStylesError: "Impossible de lire le dossier des styles.",
+    customStylesFolder: "Dossiers des styles et thèmes",
+    customStylesRefresh: "Actualiser la liste",
+    customCssLabel: "CSS personnel",
+    customCssHint:
+      "S’applique tout de suite. Les images et polices d’internet ne sont pas chargées. Si l’affichage est cassé, appuyez sur Ctrl Maj 0.",
+    kbSafeStyles: "Désactiver temporairement les styles personnels",
     themeGarden: "Jardin",
     themeMagic: "Magie",
     themeMoon: "Lune",
@@ -201,6 +266,23 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Enregistrer maintenant",
   },
   es: {
+    customStyles: "Estilos propios",
+    customStylesOff:
+      "Los estilos y temas propios están desactivados hasta reiniciar. Para recuperarlos: Ajustes → Apariencia.",
+    customStylesOffTitle: "Estilos propios desactivados temporalmente",
+    customStylesOffHint:
+      "Pulsaste Ctrl Mayús 0. Si un estilo rompió el aspecto, desactívalo abajo y vuelve a activar los estilos.",
+    customStylesRestore: "Volver a activar",
+    customStylesHint:
+      "Coloca un archivo .css en la carpeta snippets y aparecerá aquí con un interruptor. Los archivos .css de la carpeta themes aparecen entre los temas.",
+    customStylesEmpty: "Aún no hay estilos propios.",
+    customStylesError: "No se pudo leer la carpeta de estilos.",
+    customStylesFolder: "Carpetas de estilos y temas",
+    customStylesRefresh: "Actualizar lista",
+    customCssLabel: "CSS propio",
+    customCssHint:
+      "Se aplica al instante. No se cargan imágenes ni fuentes de internet. Si el aspecto se rompe, pulsa Ctrl Mayús 0.",
+    kbSafeStyles: "Desactivar temporalmente los estilos propios",
     themeGarden: "Jardín",
     themeMagic: "Magia",
     themeMoon: "Luna",
@@ -251,6 +333,23 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Guardar ahora",
   },
   "pt-BR": {
+    customStyles: "Estilos próprios",
+    customStylesOff:
+      "Estilos e temas próprios desativados até reiniciar. Para trazê-los de volta: Configurações → Aparência.",
+    customStylesOffTitle: "Estilos próprios desativados temporariamente",
+    customStylesOffHint:
+      "Você pressionou Ctrl Shift 0. Se um estilo quebrou a aparência, desative-o abaixo e depois reative os estilos.",
+    customStylesRestore: "Reativar",
+    customStylesHint:
+      "Coloque um arquivo .css na pasta snippets e ele aparece aqui com um interruptor. Arquivos .css da pasta themes aparecem entre os temas.",
+    customStylesEmpty: "Ainda não há estilos próprios.",
+    customStylesError: "Não foi possível ler a pasta de estilos.",
+    customStylesFolder: "Pastas de estilos e temas",
+    customStylesRefresh: "Atualizar lista",
+    customCssLabel: "CSS próprio",
+    customCssHint:
+      "Aplica na hora. Imagens e fontes da internet não são carregadas. Se a aparência quebrar, pressione Ctrl Shift 0.",
+    kbSafeStyles: "Desativar temporariamente os estilos próprios",
     themeGarden: "Jardim",
     themeMagic: "Magia",
     themeMoon: "Lua",
@@ -301,6 +400,20 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Salvar agora",
   },
   "zh-CN": {
+    customStyles: "自定义样式",
+    customStylesOff: "自定义样式和主题已关闭，直到重新启动。恢复方法：设置 → 外观。",
+    customStylesOffTitle: "自定义样式已暂时关闭",
+    customStylesOffHint: "你按下了 Ctrl Shift 0。如果某个样式破坏了界面，请在下方关闭它，然后重新启用样式。",
+    customStylesRestore: "重新启用",
+    customStylesHint:
+      "把 .css 文件放进 snippets 文件夹，它会带着开关出现在这里。themes 文件夹中的 .css 文件会出现在主题列表中。",
+    customStylesEmpty: "还没有自定义样式。",
+    customStylesError: "无法读取样式文件夹。",
+    customStylesFolder: "样式和主题文件夹",
+    customStylesRefresh: "刷新列表",
+    customCssLabel: "自定义 CSS",
+    customCssHint: "立即生效。不会加载网络上的图片和字体。如果界面出错，请按 Ctrl Shift 0。",
+    kbSafeStyles: "暂时关闭自定义样式",
     themeGarden: "花园",
     themeMagic: "魔法",
     themeMoon: "月夜",
@@ -350,6 +463,22 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "立即保存",
   },
   sr: {
+    customStyles: "Своји стилови",
+    customStylesOff: "Своји стилови и теме су искључени до поновног покретања. Враћање: Подешавања → Изглед.",
+    customStylesOffTitle: "Своји стилови су привремено искључени",
+    customStylesOffHint:
+      "Притиснули сте Ctrl Shift 0. Ако је неки стил покварио изглед, искључите га испод, па поново укључите стилове.",
+    customStylesRestore: "Поново укључи",
+    customStylesHint:
+      "Ставите .css датотеку у фасциклу snippets — појавиће се овде са прекидачем. .css датотеке из фасцикле themes појављују се међу темама.",
+    customStylesEmpty: "Још нема својих стилова.",
+    customStylesError: "Фасцикла са стиловима није могла да се прочита.",
+    customStylesFolder: "Фасцикле са стиловима и темама",
+    customStylesRefresh: "Освежи списак",
+    customCssLabel: "Свој CSS",
+    customCssHint:
+      "Примењује се одмах. Слике и фонтови са интернета се не учитавају. Ако се изглед поквари, притисните Ctrl Shift 0.",
+    kbSafeStyles: "Привремено искључи своје стилове",
     themeGarden: "Башта",
     themeMagic: "Магија",
     themeMoon: "Месец",
@@ -400,6 +529,22 @@ export const panelMessages: Record<string, Record<string, string>> = {
     kbSave: "Сачувај сада",
   },
   koi: {
+    customStyles: "Ас стильяс",
+    customStylesOff: "Ас стильяс да темаэз кусӧдӧм выльысь пускайтӧдз. Бӧр пыртны: Настройкаэз → Тыдалӧм.",
+    customStylesOffTitle: "Ас стильяс кадколаӧ кусӧдӧм",
+    customStylesOffHint:
+      "Тіянӧ пырӧдід Ctrl Shift 0. Кӧ кутшӧмкӧ стиль тшыкӧдіс тыдалӧмсӧ, кусӧдӧ сійӧс улынджык, сэсся пыртӧ стильяссӧ выльысь.",
+    customStylesRestore: "Пыртны выльысь",
+    customStylesHint:
+      "Пуктӧ .css файл snippets папкаӧ — сійӧ тыдовтчас тані переключательӧн. themes папкаысь .css файлъяс тыдовтчасны темаэз пиын.",
+    customStylesEmpty: "Ас стильяс эзӧ.",
+    customStylesError: "Стильяса папкасӧ лыддьыны эз удайтчы.",
+    customStylesFolder: "Стильяса да темаа папкаэз",
+    customStylesRefresh: "Выльмӧдны списоксӧ",
+    customCssLabel: "Ас CSS",
+    customCssHint:
+      "Вежсьӧ пыр жӧ. Интернетысь серпасъяс да шрифтъяс оз пырӧны. Кӧ тыдалӧмыс тшыкалі, пырӧдӧ Ctrl Shift 0.",
+    kbSafeStyles: "Кадколаӧ кусӧдны ас стильяссӧ",
     themeGarden: "Сад",
     themeMagic: "Тӧдісьлун",
     themeMoon: "Тӧлысь",

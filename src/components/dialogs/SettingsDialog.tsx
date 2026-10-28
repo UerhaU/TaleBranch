@@ -1,11 +1,23 @@
 import { useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { Check, Database, Globe, Palette, Save, ShieldCheck, Trash2, type LucideIcon } from "lucide-react";
+import {
+  Check,
+  Database,
+  FolderOpen,
+  RefreshCw,
+  Globe,
+  Palette,
+  Save,
+  ShieldCheck,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import { TreeIcon } from "../TreeIcon";
 import { Modal } from "../Modal";
 import { supportedLocales, useI18n } from "../../i18n";
 import { TEXT_SIZE, THEMES, type AppearanceApi, type ThemeMode, type ThemeName } from "../../hooks/useAppearance";
 import type { ProjectApi } from "../../hooks/projectApi";
+import type { CustomStylesApi } from "../../hooks/useCustomStyles";
 import type { TreeView } from "../../hooks/useTreeView";
 
 const themeLabels: Record<ThemeName, string> = {
@@ -88,15 +100,82 @@ function DynastySection({ app, onDeleteDynasty }: { app: ProjectApi; onDeleteDyn
   );
 }
 
+/** The user's own CSS: files with switches in the desktop version, one field in the browser. */
+function CustomStylesSection({ custom }: { custom: CustomStylesApi }) {
+  const { t } = useI18n();
+  return (
+    <>
+      <h3>{t("customStyles")}</h3>
+      {custom.safe && (
+        <div className="tb-row-card tb-safe-note" role="status">
+          <span>
+            <b>{t("customStylesOffTitle")}</b>
+            <small>{t("customStylesOffHint")}</small>
+          </span>
+          <button className="button subtle" onClick={custom.restore}>
+            {t("customStylesRestore")}
+          </button>
+        </div>
+      )}
+      {custom.desktop ? (
+        <>
+          <p className="tb-hint">{t("customStylesHint")}</p>
+          {custom.snippets.map((snippet) => (
+            <Toggle
+              key={snippet.file}
+              label={snippet.file.replace(/\.css$/i, "")}
+              checked={custom.enabled.includes(snippet.file)}
+              onChange={(on) => custom.toggle(snippet.file, on)}
+            />
+          ))}
+          {!custom.snippets.length && <p className="tb-hint">{t("customStylesEmpty")}</p>}
+          {custom.error && (
+            <p className="tb-hint" role="alert">
+              {t("customStylesError")}
+            </p>
+          )}
+          <div className="tb-row-card">
+            <FolderOpen size={18} />
+            <span>
+              <b>{t("customStylesFolder")}</b>
+              <small className="tb-path">
+                {custom.folder ? `${custom.folder}\\snippets · ${custom.folder}\\themes` : "TaleBranch-data"}
+              </small>
+            </span>
+            <button className="button subtle" onClick={() => void custom.refresh()}>
+              <RefreshCw size={16} /> {t("customStylesRefresh")}
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="field">
+          <span>{t("customCssLabel")}</span>
+          <textarea
+            className="tb-code"
+            rows={6}
+            spellCheck={false}
+            placeholder=".tb-card { border-radius: 18px; }"
+            value={custom.webCss}
+            onChange={(event) => custom.setWebCss(event.target.value)}
+          />
+          <small className="tb-hint">{t("customCssHint")}</small>
+        </label>
+      )}
+    </>
+  );
+}
+
 /** Program settings; they work with or without an open dynasty. */
 export function SettingsDialog({
   appearance,
+  custom,
   app,
   view,
   onDeleteDynasty,
   onClose,
 }: {
   appearance: AppearanceApi;
+  custom: CustomStylesApi;
   app: ProjectApi;
   view: TreeView;
   onDeleteDynasty: () => void;
@@ -139,7 +218,12 @@ export function SettingsDialog({
             <>
               <h3>{t("theme")}</h3>
               <div className="tb-theme-grid" role="group" aria-label={t("theme")}>
-                {THEMES.map((name) => (
+                {[
+                  ...THEMES.map((name) => [name, t(themeLabels[name])] as const),
+                  ...custom.themes
+                    .filter((theme) => !(THEMES as readonly string[]).includes(theme.id))
+                    .map((theme) => [theme.id, theme.name] as const),
+                ].map(([name, label]) => (
                   <button
                     key={name}
                     className={`tb-theme-tile ${appearance.palette === name ? "active" : ""}`}
@@ -160,7 +244,9 @@ export function SettingsDialog({
                       </span>
                       <span className="pv-btn" />
                     </span>
-                    <span className="tb-theme-name">{t(themeLabels[name])}</span>
+                    <span className="tb-theme-name" title={label}>
+                      {label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -204,6 +290,7 @@ export function SettingsDialog({
                 checked={appearance.lessMotion}
                 onChange={(lessMotion) => appearance.update({ lessMotion })}
               />
+              <CustomStylesSection custom={custom} />
             </>
           )}
           {section === "language" && (

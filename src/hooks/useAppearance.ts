@@ -7,7 +7,8 @@ export type ThemeMode = Theme | "system";
 export const THEMES = ["default", "garden", "magic", "moon", "city", "kingdom"] as const;
 export type ThemeName = (typeof THEMES)[number];
 export type Appearance = {
-  palette: ThemeName;
+  /** A built-in theme or the id of the user's own theme (its file name). */
+  palette: string;
   mode: ThemeMode;
   pattern: boolean;
   textSize: number;
@@ -36,7 +37,7 @@ function readAppearance(): Appearance {
   const size = Number(readPreference(keys.textSize));
   const palette = readPreference(keys.palette);
   return {
-    palette: (THEMES as readonly string[]).includes(palette ?? "") ? (palette as ThemeName) : "default",
+    palette: palette && /^[\p{L}\p{N}-]+$/u.test(palette) ? palette : "default",
     pattern: readPreference(keys.pattern) !== "false",
     mode: mode === "light" || mode === "system" ? mode : "dark",
     textSize: size >= TEXT_SIZE.min && size <= TEXT_SIZE.max && size % TEXT_SIZE.step === 0 ? size : 100,
@@ -46,7 +47,7 @@ function readAppearance(): Appearance {
 }
 
 /** Theme, light or dark mode, field pattern, text size, reduced motion and the mini map; remembered between launches. */
-export function useAppearance() {
+export function useAppearance(userThemes?: { ids: string[]; loaded: boolean; safe: boolean }) {
   const [appearance, setAppearance] = useState(readAppearance);
   const [system, setSystem] = useState(systemTheme);
   useEffect(() => {
@@ -57,11 +58,17 @@ export function useAppearance() {
     return () => query.removeEventListener?.("change", refresh);
   }, []);
   const theme: Theme = appearance.mode === "system" ? system : appearance.mode;
+  // A user theme that is gone, or switched off with Ctrl Shift 0, shows the classic theme instead.
+  const builtIn = (THEMES as readonly string[]).includes(appearance.palette);
+  const shown =
+    builtIn || (userThemes && (!userThemes.loaded || (!userThemes.safe && userThemes.ids.includes(appearance.palette))))
+      ? appearance.palette
+      : "default";
 
   useEffect(() => {
     const root = document.documentElement;
     // The theme and its light or dark variant are chosen separately.
-    root.dataset.theme = appearance.palette;
+    root.dataset.theme = shown;
     root.dataset.mode = theme;
     root.dataset.pattern = appearance.pattern ? "on" : "off";
     root.dataset.motion = appearance.lessMotion ? "reduce" : "full";
@@ -72,15 +79,16 @@ export function useAppearance() {
     writePreference(keys.textSize, String(appearance.textSize));
     writePreference(keys.lessMotion, String(appearance.lessMotion));
     writePreference(keys.showMinimap, String(appearance.showMinimap));
-  }, [appearance, theme]);
+  }, [appearance, theme, shown]);
 
   return useMemo(
     () => ({
       ...appearance,
       theme,
+      shown,
       update: (patch: Partial<Appearance>) => setAppearance((current) => ({ ...current, ...patch })),
     }),
-    [appearance, theme],
+    [appearance, theme, shown],
   );
 }
 

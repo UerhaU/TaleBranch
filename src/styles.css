@@ -4646,3 +4646,19 @@ input[type="range"] {
 .tb-inspector.is-editing .tb-panel-head h2 {
   font-size: 20px;
 }
+
+/* Свои стили в настройках */
+.field textarea.tb-code {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.tb-path {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+}
+
+.tb-safe-note {
+  background: var(--tb-wheat-soft);
+}

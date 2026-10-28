@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useProject } from "./hooks/useProject";
 import { useDialogs } from "./hooks/useDialogs";
 import { useDynastyFiles } from "./hooks/useDynastyFiles";
 import { useShortcuts } from "./hooks/useShortcuts";
 import { useAppearance } from "./hooks/useAppearance";
+import { useCustomStyles } from "./hooks/useCustomStyles";
 import { useCharacterActions } from "./hooks/useCharacterActions";
 import { useToast } from "./hooks/useToast";
 import { useTreeView } from "./hooks/useTreeView";
@@ -34,10 +35,15 @@ export default function App() {
   const { t } = useI18n();
   const app = useProject();
   const { project } = app;
-  const appearance = useAppearance();
   const dialogs = useDialogs();
   const view = useTreeView(project);
   const { toast, notify } = useToast();
+  const custom = useCustomStyles(useCallback(() => notify(t("customStylesOff")), [notify, t]));
+  const appearance = useAppearance({
+    ids: custom.themes.map((theme) => theme.id),
+    loaded: custom.loaded,
+    safe: custom.safe,
+  });
   const files = useDynastyFiles({
     app,
     notify,
@@ -200,6 +206,7 @@ export default function App() {
       {dialogs.state.settings && (
         <SettingsDialog
           appearance={appearance}
+          custom={custom}
           app={app}
           view={view}
           onClose={() => dialogs.close("settings")}
