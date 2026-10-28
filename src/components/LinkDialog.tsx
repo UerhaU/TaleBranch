@@ -246,6 +246,8 @@ export function LinkDialog({
     editedParent?.childId ??
       editedPair?.bId ??
       initialTo ??
+      // Someone who can be this character's child without a loop; any other character otherwise.
+      candidates.find((item) => item.id !== fromId && !wouldCreateAncestorCycle(project, fromId, item.id))?.id ??
       candidates.find((item) => item.id !== fromId)?.id ??
       fromId,
   );
@@ -378,7 +380,7 @@ export function LinkDialog({
         )}
         {kind === "parent" ? (
           <div className="form-grid">
-            <label className="field span-2">
+            <label className="field">
               <span>{t("familyType")}</span>
               <input
                 list="family-kinds"
@@ -396,17 +398,22 @@ export function LinkDialog({
                 ))}
               </datalist>
             </label>
-            <label className="field span-2">
+            <div className="field" role="group" aria-label={t("biologicalLink")}>
               <span>{t("biologicalLink")}</span>
-              <select
-                value={biological}
-                onChange={(event) => setBiological(event.target.value as ParentLink["biological"])}
-              >
-                <option value="yes">{t("yes")}</option>
-                <option value="no">{t("no")}</option>
-                <option value="unknown">{t("unknown")}</option>
-              </select>
-            </label>
+              <div className="segmented wrap">
+                {(["yes", "no", "unknown"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={biological === value ? "active" : ""}
+                    aria-pressed={biological === value}
+                    onClick={() => setBiological(value)}
+                  >
+                    {t(value)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="field">
               <span>{t("parentRole")}</span>
               <input value={valueLabel(parentRole)} onChange={(event) => setParentRole(event.target.value)} />

@@ -123,6 +123,29 @@ describe("choosing and swapping relationship characters", () => {
       expect.objectContaining({ parentId: "boris", childId: "anna", parentRole: "Родитель", childRole: "Ребёнок" }),
     );
   });
+  it("does not suggest the character's own parent as the new child", () => {
+    const project = makeProject();
+    project.parentLinks.push({
+      id: "existing",
+      parentId: "anna",
+      childId: "boris",
+      kind: "Биологическое",
+      parentRole: "Родитель",
+      childRole: "Ребёнок",
+      biological: "yes",
+      active: true,
+      comment: "",
+    });
+    act(() =>
+      root.render(
+        <LanguageProvider>
+          <LinkDialog project={project} selectedId="boris" onClose={close} onParent={parent} onPair={pair} />
+        </LanguageProvider>,
+      ),
+    );
+    expect(names()).toEqual(["Борис Воробьёв", "Тестовый псевдоним"]);
+    expect(container.querySelector(".warning-box")).toBeNull();
+  });
   it("can swap back and recalculates cycle warnings for the new direction", () => {
     const project = makeProject();
     project.parentLinks.push({

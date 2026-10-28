@@ -84,3 +84,55 @@ describe("photo stage selection", () => {
     expect(onLifeStage).toHaveBeenCalledWith("Ребёнок");
   });
 });
+
+describe("keyboard in the right panel", () => {
+  it("closes only the «More actions» menu on Escape and keeps the panel open", () => {
+    const project = createDemoProject();
+    const character = project.characters.find((item) => item.id === "char_vera")!;
+    const onClose = vi.fn();
+    const noop = () => undefined;
+    act(() =>
+      root.render(
+        <LanguageProvider>
+          <Inspector
+            character={character}
+            project={project}
+            onClose={onClose}
+            onEdit={vi.fn()}
+            onDelete={vi.fn()}
+            onAddLink={vi.fn()}
+            onPhoto={vi.fn()}
+            onLifeStage={vi.fn()}
+            onEditPhoto={vi.fn()}
+            onRemovePhoto={vi.fn()}
+            onEditLink={vi.fn()}
+            onRemoveLink={vi.fn()}
+            onPasteError={vi.fn()}
+            actions={{
+              edit: noop,
+              addChild: noop,
+              addParent: noop,
+              addRelation: noop,
+              photo: noop,
+              showRelatives: noop,
+              trash: noop,
+            }}
+          />
+        </LanguageProvider>,
+      ),
+    );
+    const more = container.querySelector<HTMLButtonElement>('[aria-label="Ещё действия"]')!;
+    act(() => more.click());
+    act(() => container.querySelector<HTMLButtonElement>('[role="menu"] button')!.focus());
+    const escape = () =>
+      act(() => {
+        document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      });
+    escape();
+    expect(container.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(more);
+    expect(onClose).not.toHaveBeenCalled();
+    escape();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

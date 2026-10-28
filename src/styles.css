@@ -12,6 +12,8 @@
   --tb-radius-xl: 28px;
   --tb-radius-pill: 999px;
   --tb-inspector-width: 380px;
+  /* Ширина панели до увеличения текста; в узком окне см. ниже */
+  --tb-panel-width: var(--tb-inspector-width);
   --tb-white: #ffffff;
   /* Цвета значков династий на начальном экране */
   --tb-p-blue: #5565dc;
@@ -204,7 +206,7 @@ kbd {
 }
 
 .tb-app.has-inspector {
-  --tb-rx: calc(var(--tb-inspector-width) * var(--tb-ui-zoom, 1) + 16px);
+  --tb-rx: calc(var(--tb-panel-width) * var(--tb-ui-zoom, 1) + 16px);
 }
 
 .tb-app[inert] {
@@ -1521,6 +1523,8 @@ button.tb-dyn-btn.is-open {
 @media (max-width: 1199px) {
   :root {
     --tb-inspector-width: 340px;
+    /* Крупный текст делает панель выше и плотнее, но не шире 380 px: поле древа остаётся видно */
+    --tb-panel-width: min(var(--tb-inspector-width), calc(380px / var(--tb-ui-zoom, 1)));
   }
 
   .tb-dock .tb-nav-label {
@@ -1619,6 +1623,14 @@ button.tb-dyn-btn.is-open {
 
 .button:not(:disabled):hover {
   background: var(--tb-surface-3);
+}
+
+/* В правой панели длинная подпись кнопки (сербский, немецкий, крупный текст) переносится, а не вылезает за край */
+.tb-panel .button {
+  max-width: 100%;
+  padding-block: 6px;
+  text-align: center;
+  white-space: normal;
 }
 
 .button.primary {
@@ -1819,7 +1831,8 @@ input[type="range"] {
   background: var(--tb-surface-2);
 }
 
-.segmented.wrap {
+.segmented.wrap,
+.tb-panel .segmented {
   flex-wrap: wrap;
   border-radius: 20px;
 }
@@ -2008,7 +2021,7 @@ input[type="range"] {
   top: 16px;
   right: 16px;
   display: flex;
-  width: var(--tb-inspector-width);
+  width: var(--tb-panel-width);
   max-height: calc(100% - 32px);
   flex-direction: column;
   align-items: stretch;
@@ -2186,6 +2199,8 @@ input[type="range"] {
 
 .tb-inspector:not(.is-editing) .tb-tab:not(.active) {
   width: 38px;
+  min-width: 30px;
+  flex-shrink: 1;
   padding: 0;
 }
 
@@ -2194,7 +2209,15 @@ input[type="range"] {
 }
 
 .tb-inspector:not(.is-editing) .tb-tab.active {
-  flex: 1;
+  min-width: 38px;
+  flex: 1 1 auto;
+}
+
+/* В узкой панели (крупный текст, длинный перевод) подпись выбранной вкладки сокращается, значки остаются видны */
+.tb-inspector:not(.is-editing) .tb-tab.active span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tb-panel-body {
@@ -2715,10 +2738,17 @@ input[type="range"] {
 }
 
 .tb-menu-head {
-  padding: 6px 12px 8px;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 10px;
   font-family: var(--tb-font-display);
   font-size: 15px;
+}
+
+.tb-menu-head b {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3492,6 +3522,10 @@ input[type="range"] {
   border-radius: var(--tb-radius-pill);
   color: var(--tb-text-faint);
   background: var(--tb-surface-2);
+}
+
+.character-picker-search:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--tb-focus);
 }
 
 .character-picker-search input {

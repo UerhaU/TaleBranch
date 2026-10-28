@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Plus, Search, Sparkles, X } from "lucide-react";
 import { catalogEntry, iconUrl, type CatalogEntry, type CatalogKind } from "../lib/catalog";
 import { useI18n } from "../i18n";
@@ -63,6 +63,12 @@ export function CatalogPicker({
     [customOpen, setCustomOpen] = useState(false),
     [customText, setCustomText] = useState("");
   const active = open || alwaysOpen;
+  const trigger = useRef<HTMLButtonElement>(null);
+  // Closing the list puts the keyboard back on «Choose from the catalog».
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
   const packs = useMemo(() => [...new Set(options.map((item) => item.pack))].sort(), [options]);
   const categories = useMemo(
     () =>
@@ -98,7 +104,7 @@ export function CatalogPicker({
     );
     if (!multiple) {
       onCustomChange?.("");
-      setOpen(false);
+      close();
     }
   };
   const addCustom = () => {
@@ -163,6 +169,7 @@ export function CatalogPicker({
       {!alwaysOpen && (
         <button
           type="button"
+          ref={trigger}
           className="catalog-trigger"
           aria-label={`${t("choose")} ${label}`}
           aria-expanded={active}
@@ -187,7 +194,7 @@ export function CatalogPicker({
             if (event.key === "Escape" && !alwaysOpen) {
               event.preventDefault();
               event.stopPropagation();
-              setOpen(false);
+              close();
             }
           }}
         >
@@ -270,7 +277,7 @@ export function CatalogPicker({
               </button>
             )}
             {!alwaysOpen && (
-              <button className="button ghost" onClick={() => setOpen(false)}>
+              <button className="button ghost" onClick={close}>
                 {t("done")}
               </button>
             )}

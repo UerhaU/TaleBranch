@@ -32,7 +32,12 @@ export function Popover({
       if (!root.current?.contains(event.target as Node)) onOpenChange(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onOpenChange(false);
+      if (event.key !== "Escape") return;
+      // Handled: the window-wide shortcuts must not also close the panel or deselect.
+      event.preventDefault();
+      // Keyboard focus inside the menu goes back to the button that opened it.
+      if (root.current?.contains(document.activeElement)) root.current.querySelector<HTMLElement>("button")?.focus();
+      onOpenChange(false);
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -42,7 +47,8 @@ export function Popover({
     };
   }, [open, onOpenChange]);
   return (
-    <div className={`tb-popover ${className}`} ref={root}>
+    // An open menu takes Escape for itself, so the right panel around it stays open.
+    <div className={`tb-popover ${className}`} ref={root} data-escape-layer={open || undefined}>
       {trigger}
       {open && (
         <div className={`tb-menu ${placement} align-${align} ${menuClassName}`} role="menu" aria-label={label}>

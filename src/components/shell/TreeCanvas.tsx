@@ -12,7 +12,7 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { Maximize, Network, Plus, Search } from "lucide-react";
-import { CharacterNode, QuickLinkContext, type CharacterNodeData, type QuickKind } from "../CharacterNode";
+import { Avatar, CharacterNode, QuickLinkContext, type CharacterNodeData, type QuickKind } from "../CharacterNode";
 import { RelationshipEdge } from "../RelationshipEdge";
 import { FamilyEdge } from "../FamilyEdge";
 import { useI18n } from "../../i18n";
@@ -191,6 +191,7 @@ export function TreeCanvas({
       {menu?.kind === "person" && menuCharacter && (
         <ContextMenu x={menu.x} y={menu.y} label={menuCharacter.displayName} onClose={() => setMenu(undefined)}>
           <div className="tb-menu-head">
+            <Avatar character={menuCharacter} size={32} />
             <b>{menuCharacter.displayName}</b>
           </div>
           <CharacterMenuItems character={menuCharacter} actions={actions} onDone={() => setMenu(undefined)} />

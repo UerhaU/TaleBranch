@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties } from "react";
+import { useEffect, useId, useState, type CSSProperties } from "react";
 import { Bone, Check, CircleUserRound, Ghost, HeartPulse, PawPrint, Plus, Skull, Sparkles, Trash2 } from "lucide-react";
 import type { CareerPeriod, Character, CharacterCatalog, CharacterStatus, CharacterType } from "../types";
 import { createCharacter } from "../lib/project";
@@ -87,6 +87,19 @@ export function CharacterEditor({
   const currentStage = draft.stages.find((stage) => stage.name === draft.lifeStage);
   const selectedGender = genderChoice(draft.gender);
   const [photoReading, setPhotoReading] = useState(false);
+  // Read while rendering, before the name field takes focus.
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
+  useEffect(() => {
+    // After «Save» or «Cancel» keyboard focus goes back where the editor was opened from,
+    // or to «Edit» of the panel that replaces the editor.
+    return () => {
+      window.setTimeout(() => {
+        if (document.activeElement && document.activeElement !== document.body) return;
+        const target = opener?.isConnected && opener !== document.body ? opener : null;
+        (target ?? document.querySelector<HTMLElement>(".tb-inspector .tb-soft-btn"))?.focus();
+      });
+    };
+  }, [opener]);
   const settings = draft.catalog!;
   const setCatalog = (patch: Partial<CharacterCatalog>) =>
     setDraft((current) => ({ ...current, catalog: { ...current.catalog!, ...patch } }));
