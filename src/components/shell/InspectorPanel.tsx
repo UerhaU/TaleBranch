@@ -1,71 +1,115 @@
 import type { Character } from "../../types";
 import { Inspector } from "../Inspector";
+import { CharacterEditor } from "../CharacterEditor";
 import { useI18n } from "../../i18n";
+import { makeId } from "../../lib/id";
+import { validPetOwnerIds } from "../../lib/relationships";
 import type { ProjectApi } from "../../hooks/projectApi";
 import type { Dialogs } from "../../hooks/useDialogs";
+import type { CharacterActions } from "./CharacterMenu";
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/** The selected character's card on the right, wired to the main screen windows. */
+/**
+ * The right panel: the selected character, or the same panel in editing mode.
+ * A new character is created here too, already linked when it came from «Add child» or «Add parent».
+ */
 export function InspectorPanel({
   app,
   selected,
   dialogs,
+  actions,
   notify,
+  onSelect,
+  onPhoto,
   onClose,
 }: {
   app: ProjectApi;
-  selected: Character;
+  selected?: Character;
   dialogs: Dialogs;
+  actions: CharacterActions;
   notify: (message: string) => void;
+  onSelect: (id: string | undefined) => void;
+  onPhoto: (file: File, characterId: string, stageName: string) => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
   const { project } = app;
+  const { addCharacter, editCharacter } = dialogs.state;
 
-  const onPhotoFile = async (file: File, stageName: string) => {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      notify(t("unsupportedImage"));
-      return;
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      notify(t("fileTooLarge"));
-      return;
-    }
-    const characterId = selected.id;
-    try {
-      dialogs.open("photo", { original: await readAsDataUrl(file), stageName, characterId });
-    } catch {
-      notify(t("imageReadError"));
-    }
-  };
+  if (addCharacter) {
+    const relative = addCharacter.relative && project.characters.find((item) => item.id === addCharacter.relative!.id);
+    return (
+      <CharacterEditor
+        key={`new:${addCharacter.relative?.id ?? ""}:${addCharacter.type}`}
+        initialType={addCharacter.type}
+        ownerCandidates={project.characters}
+        initialLastName={relative?.type === "sim" ? relative.lastName : undefined}
+        onClose={() => dialogs.close("addCharacter")}
+        onSave={(character) => {
+          if (character.type === "pet" && !validPetOwnerIds(character, project.characters).length) {
+            notify(t("petOwnerRequired"));
+            return;
+          }
+          const link = addCharacter.relative;
+          if (link && character.type !== "pet" && relative) {
+            // The character and its link are one step for «Undo».
+            app.commit((draft) => {
+              draft.characters.push(character);
+              draft.positions[character.id] = addCharacter.position ?? { x: 0, y: 0 };
+              draft.parentLinks.push({
+                id: makeId("parent"),
+                parentId: link.as === "child" ? link.id : character.id,
+                childId: link.as === "child" ? character.id : link.id,
+                kind: "Биологическое",
+                parentRole: "Родитель",
+                childRole: "Ребёнок",
+                biological: "yes",
+                active: true,
+                comment: "",
+              });
+            });
+          } else if (!app.addCharacter(character, addCharacter.position)) {
+            notify(t("petOwnerRequired"));
+            return;
+          }
+          onSelect(character.id);
+          dialogs.close("addCharacter");
+          notify(t("characterAdded"));
+        }}
+      />
+    );
+  }
 
-  const requestDelete = () => {
-    dialogs.open("deleteCharacter", {
-      character: selected,
-      family: project.parentLinks.filter((link) => link.parentId === selected.id || link.childId === selected.id)
-        .length,
-      pairs: project.pairLinks.filter((link) => link.aId === selected.id || link.bId === selected.id).length,
-      photos: selected.stages.filter((stage) => stage.photo).length,
-    });
-  };
+  if (editCharacter) {
+    return (
+      <CharacterEditor
+        key={`edit:${editCharacter.id}`}
+        character={editCharacter}
+        ownerCandidates={project.characters}
+        onClose={() => dialogs.close("editCharacter")}
+        onSave={(character) => {
+          if (!app.updateCharacter(character.id, character)) {
+            notify(t("petOwnerRequired"));
+            return;
+          }
+          dialogs.close("editCharacter");
+          notify(t("profileUpdated"));
+        }}
+      />
+    );
+  }
 
+  if (!selected) return null;
   return (
     <Inspector
       character={selected}
       project={project}
+      actions={actions}
+      onSelect={onSelect}
       onClose={onClose}
-      onEdit={() => dialogs.open("editCharacter", selected)}
-      onDelete={requestDelete}
-      onAddLink={(kind) => dialogs.open("link", { kind })}
-      onPhoto={(file, stage) => void onPhotoFile(file, stage)}
+      onEdit={() => actions.edit(selected.id)}
+      onDelete={() => actions.trash(selected.id)}
+      onAddLink={(kind) => dialogs.open("link", { kind, fromId: selected.id })}
+      onPhoto={(file, stage) => onPhoto(file, selected.id, stage)}
       onLifeStage={(lifeStage) => app.updateCharacter(selected.id, { lifeStage })}
       onPasteError={() => notify(t("clipboardNoImage"))}
       onEditPhoto={(stageName) => {

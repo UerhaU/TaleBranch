@@ -1,5 +1,6 @@
 import { ArchiveRestore, Trash2 } from "lucide-react";
 import { Modal } from "../Modal";
+import { Avatar } from "../CharacterNode";
 import { useI18n } from "../../i18n";
 import type { ProjectApi } from "../../hooks/projectApi";
 import type { PermanentDeleteDraft } from "../../hooks/useDialogs";
@@ -22,7 +23,7 @@ export function TrashDialog({
       <div className="modal-body trash-list">
         {project.trashedCharacters.map((character) => (
           <div key={character.id}>
-            <span style={{ background: character.color }}>{character.displayName.slice(0, 1)}</span>
+            <Avatar character={character} size={40} />
             <div>
               <strong>{character.displayName}</strong>
               <small>{valueLabel(character.lifeStage)}</small>

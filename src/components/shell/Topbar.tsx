@@ -81,6 +81,7 @@ export function Topbar({
               <button
                 className="tb-add-main add-person"
                 disabled={app.loadError}
+                title={`${t("addCharacter")} (N)`}
                 onClick={() => dialogs.open("addCharacter", { type: "sim" })}
               >
                 <Plus size={18} strokeWidth={2.4} />
@@ -103,6 +104,7 @@ export function Topbar({
           <button className="tb-menu-item" onClick={() => add(() => dialogs.open("addCharacter", { type: "sim" }))}>
             <UserRound size={18} />
             <span>{t("character")}</span>
+            <kbd>N</kbd>
           </button>
           <button className="tb-menu-item" onClick={() => add(() => dialogs.open("addCharacter", { type: "pet" }))}>
             <PawPrint size={18} />
@@ -115,6 +117,7 @@ export function Topbar({
           >
             <Link2 size={18} />
             <span>{t("addConnection")}</span>
+            <kbd>L</kbd>
           </button>
         </Popover>
       </div>

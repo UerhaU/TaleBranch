@@ -8,6 +8,7 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  className = "",
   onKeyDown,
 }: {
   title: string;
@@ -15,6 +16,7 @@ export function Modal({
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  className?: string;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }) {
   const { t } = useI18n();
@@ -71,18 +73,17 @@ export function Modal({
         ref={dialog}
         onKeyDown={onKeyDown}
         tabIndex={-1}
-        className={`tb-modal modal ${wide ? "modal-wide" : ""}`}
+        className={`tb-modal modal ${wide ? "modal-wide" : ""} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
         <header className="modal-header">
           <div>
-            <span className="eyebrow">{t("appName")}</span>
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label={t("close")}>
+          <button className="tb-icon-btn" onClick={onClose} aria-label={t("close")} title={`${t("close")} (Esc)`}>
             <X size={19} />
           </button>
         </header>

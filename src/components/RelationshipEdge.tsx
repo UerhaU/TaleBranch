@@ -9,7 +9,7 @@ export type RelationshipEdgeData = {
 };
 
 // Line icons of the relationship presets (the same drawings as in the approved mockup).
-const relationIcons: Record<string, string> = {
+export const relationIcons: Record<string, string> = {
   rings: "M4 14a5 5 0 1 0 10 0a5 5 0 1 0-10 0M10 14a5 5 0 1 0 10 0a5 5 0 1 0-10 0M10 5l2-2 2 2",
   gem: "M6 4h12l3 5-9 11L3 9zM3 9h18M9 4l3 16M15 4l-3 16",
   heart: "M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.5 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z",

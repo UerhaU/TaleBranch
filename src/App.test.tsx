@@ -110,7 +110,7 @@ describe("dynasty and trash deletion in the interface", () => {
       await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy());
     });
     click("Настройки");
-    click("Настройки династии");
+    click("Династия", dialog());
     click("Удалить династию", dialog());
     expect(dialog().textContent).toContain("папка династии");
     expect(dialog().textContent).toContain("любые другие файлы внутри");
@@ -228,12 +228,12 @@ describe("dynasty and trash deletion in the interface", () => {
     vi.stubGlobal("showDirectoryPicker", picker);
     const project = mount();
     click("Настройки");
-    click("Настройки династии");
+    click("Династия", dialog());
     click("Удалить династию", dialog());
     expect(dialog().textContent).toContain(project.name);
     click("Отмена", dialog());
     expect(loadProject(project.id)).not.toBeNull();
-    expect(dialog().getAttribute("aria-label")).toBe("Настройки династии");
+    expect(dialog().getAttribute("aria-label")).toBe("Настройки");
     click("Удалить династию", dialog());
     click("Удалить безвозвратно", dialog());
     expect(loadProject(project.id)).toBeNull();
@@ -347,7 +347,7 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name);
     expect(listProjects()).toEqual([]);
     click("Настройки");
-    click("Настройки династии");
+    click("Династия", dialog());
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Новое название");
@@ -576,5 +576,70 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(listProjects().map((item) => item.id)).toEqual([other.id]);
     expect(container.querySelector(".project-switcher strong")?.textContent).toBe(other.name);
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe("character panel, menus and keys", () => {
+  const panel = () => container.querySelector<HTMLElement>(".tb-inspector")!;
+  const type = (input: HTMLInputElement, value: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const press = (init: KeyboardEventInit, target: EventTarget = document.body) =>
+    act(() => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+    });
+
+  it("edits the selected character in the same panel without a separate window", () => {
+    mount();
+    expect(panel().querySelector("h2")?.textContent).toBe("Вера Воронова");
+    click("Изменить", panel());
+    expect(panel().classList.contains("is-editing")).toBe(true);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    type(panel().querySelector<HTMLInputElement>("input")!, "Новое имя");
+    click("Сохранить", panel());
+    expect(panel().classList.contains("is-editing")).toBe(false);
+    expect(panel().querySelector("h2")?.textContent).toBe("Новое имя");
+  });
+
+  it("hides empty sections instead of showing «not filled» labels", () => {
+    mount([], (project) => {
+      const first = project.characters.find((item) => item.id === "char_vera")!;
+      Object.assign(first, { biography: "", notes: "", aliases: [], pronouns: "", education: "" });
+    });
+    expect(panel().textContent).not.toContain("Не заполнено");
+    expect(panel().textContent).not.toContain("Заметки");
+    expect(panel().textContent).not.toContain("История");
+  });
+
+  it("adds a child from the «⋯» menu already linked to the parent", () => {
+    const project = mount();
+    const parent = project.characters.find((item) => item.id === "char_vera")!;
+    click("Ещё действия", panel());
+    click("Добавить ребёнка");
+    expect(panel().classList.contains("is-editing")).toBe(true);
+    type(panel().querySelector<HTMLInputElement>("input")!, "Малыш");
+    click("Добавить на древо", panel());
+    act(() => vi.advanceTimersByTime(2000));
+    const saved = loadProject(project.id)!;
+    const child = saved.characters.find((item) => item.displayName === "Малыш")!;
+    expect(saved.parentLinks.some((link) => link.parentId === parent.id && link.childId === child.id)).toBe(true);
+    expect(panel().querySelector("h2")?.textContent).toBe("Малыш");
+  });
+
+  it("opens the editor with N, the delete confirmation with Delete and closes the panel with Escape", () => {
+    mount();
+    press({ key: "Delete" });
+    expect(dialog().getAttribute("aria-label")).toBe("Удалить «Вера Воронова»?");
+    click("Отмена", dialog());
+    press({ key: "n", code: "KeyN" });
+    expect(panel().querySelector("h2")?.textContent).toBe("Новый персонаж");
+    press({ key: "Escape" }, panel().querySelector("input")!);
+    expect(panel().classList.contains("is-editing")).toBe(false);
+    press({ key: "Escape" });
+    expect(container.querySelector(".tb-inspector")).toBeNull();
+    press({ key: ",", code: "Comma", ctrlKey: true });
+    expect(dialog().getAttribute("aria-label")).toBe("Настройки");
   });
 });

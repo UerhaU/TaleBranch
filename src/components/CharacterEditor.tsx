@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { Plus, Trash2, UserRound } from "lucide-react";
+import { useId, useState, type CSSProperties } from "react";
+import { Bone, Check, CircleUserRound, Ghost, HeartPulse, PawPrint, Plus, Skull, Sparkles, Trash2 } from "lucide-react";
 import type { CareerPeriod, Character, CharacterCatalog, CharacterStatus, CharacterType } from "../types";
 import { createCharacter } from "../lib/project";
 import {
@@ -16,12 +16,26 @@ import { makeId } from "../lib/id";
 import { validPetOwnerIds } from "../lib/relationships";
 import { genderChoice, genderChoices } from "../lib/gender";
 import { CharacterPhotoInput } from "./CharacterPhotoInput";
-import { Modal } from "./Modal";
 import { CatalogPicker, GameIcon } from "./CatalogPicker";
+import { Avatar } from "./CharacterNode";
+import { PanelShell } from "./shell/PanelShell";
+import { displayColor } from "../lib/colors";
 import { useI18n } from "../i18n";
 import { localizedCatalogEntry } from "../lib/catalogLocalization";
 
-const colors = ["#3E4B8E", "#3D1534", "#6D78B2", "#6F4B68", "#8AA6B6", "#C69D63"];
+/** The bright palette of the theme; the saved value is the hex color. */
+const colors = [
+  ["#5565DC", "blue"],
+  ["#8F4FC0", "violet"],
+  ["#D0517E", "rose"],
+  ["#E0664F", "coral"],
+  ["#C9781C", "amber"],
+  ["#1F8A78", "teal"],
+  ["#2F86B8", "sky"],
+  ["#B04A8F", "plum"],
+] as const;
+const typeIcons = { sim: CircleUserRound, pet: PawPrint, custom: Sparkles };
+const statusIcons = { alive: HeartPulse, dead: Skull, missing: Ghost, unknown: Bone };
 function ListInput({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
   const [text, setText] = useState(value.join(", "));
   return (
@@ -40,15 +54,18 @@ function ListInput({ value, onChange }: { value: string[]; onChange: (value: str
   );
 }
 
-export function CharacterDialog({
+/** Editing or creating a character inside the right panel, with every field of the profile. */
+export function CharacterEditor({
   character,
   initialType = "sim",
+  initialLastName,
   ownerCandidates = [],
   onClose,
   onSave,
 }: {
   character?: Character;
   initialType?: CharacterType;
+  initialLastName?: string;
   ownerCandidates?: Character[];
   onClose: () => void;
   onSave: (character: Character) => void;
@@ -58,7 +75,9 @@ export function CharacterDialog({
     const entry = catalogEntry(kind, id);
     return entry && localizedCatalogEntry(kind, entry, locale);
   };
-  const [draft, setDraft] = useState(() => prepareCatalogDraft(character ?? createCharacter("", initialType)));
+  const [draft, setDraft] = useState(() =>
+    prepareCatalogDraft(character ?? { ...createCharacter("", initialType), lastName: initialLastName ?? "" }),
+  );
   const [tab, setTab] = useState("main"),
     [allAges, setAllAges] = useState(false);
   const ownerHintId = useId();
@@ -115,20 +134,32 @@ export function CharacterDialog({
     onCustomValuesChange: (values: string[]) => setDraft((current) => ({ ...current, [field]: values })),
   });
   return (
-    <Modal
-      title={character ? t("editCharacter") : t("newCharacter")}
-      subtitle={character ? t("editCharacterHint") : t("newCharacterHint")}
+    <PanelShell
+      className="is-editing"
+      color={draft.color}
+      label={character ? t("editCharacter") : t("newCharacter")}
+      closeLabel={`${t("cancel")} (Esc)`}
       onClose={onClose}
-      wide
     >
-      <nav className="character-form-tabs" aria-label={t("profileSections")}>
+      <div className="tb-panel-head">
+        <span className="tb-panel-photo">
+          <Avatar character={draft} size={72} ring />
+        </span>
+        <h2>{draft.displayName.trim() || t(character ? "editCharacter" : "newCharacter")}</h2>
+      </div>
+      <nav className="tb-tabs tb-panel-tabs" aria-label={t("profileSections")}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
+          <button
+            key={id}
+            className={`tb-tab ${tab === id ? "active" : ""}`}
+            aria-pressed={tab === id}
+            onClick={() => setTab(id)}
+          >
             {t(label)}
           </button>
         ))}
       </nav>
-      <div className="modal-body character-form-body">
+      <div className="tb-panel-body tb-form character-form-body">
         {tab === "main" && (
           <div className="form-grid">
             <label className="field span-2">
@@ -143,24 +174,28 @@ export function CharacterDialog({
             <div className="field span-2">
               <span>{t("typeCharacter")}</span>
               <div className="segmented">
-                {(["sim", "pet", "custom"] as CharacterType[]).map((type) => (
-                  <button
-                    key={type}
-                    className={draft.type === type ? "active" : ""}
-                    onClick={() =>
-                      setDraft((current) =>
-                        changeCharacterKind(
-                          current,
-                          type,
-                          type === "pet" ? current.species || "Кошка" : current.species,
-                        ),
-                      )
-                    }
-                  >
-                    <UserRound size={15} />
-                    {t(type)}
-                  </button>
-                ))}
+                {(["sim", "pet", "custom"] as CharacterType[]).map((type) => {
+                  const TypeIcon = typeIcons[type];
+                  return (
+                    <button
+                      key={type}
+                      className={draft.type === type ? "active" : ""}
+                      aria-pressed={draft.type === type}
+                      onClick={() =>
+                        setDraft((current) =>
+                          changeCharacterKind(
+                            current,
+                            type,
+                            type === "pet" ? current.species || "Кошка" : current.species,
+                          ),
+                        )
+                      }
+                    >
+                      <TypeIcon size={16} />
+                      {t(type)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {draft.type === "pet" && (
@@ -263,35 +298,42 @@ export function CharacterDialog({
                   ))}
               </select>
             </label>
-            <label className="field">
+            <div className="field span-2">
               <span>{t("lifeStage")}</span>
-              <div className="age-select">
-                <GameIcon entry={ageEntry(draft)} />
-                <select
-                  value={draft.lifeStage}
-                  onChange={(event) => setDraft({ ...draft, lifeStage: event.target.value })}
-                >
-                  {draft.stages.map((stage) => (
-                    <option key={stage.id} value={stage.name}>
-                      {valueLabel(stage.name)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </label>
-            <label className="field">
-              <span>{t("status")}</span>
-              <select
-                value={draft.status}
-                onChange={(event) => setDraft({ ...draft, status: event.target.value as CharacterStatus })}
-              >
-                {(["alive", "dead", "missing", "unknown"] as const).map((status) => (
-                  <option key={status} value={status}>
-                    {t(status === "unknown" ? "notDefined" : status)}
-                  </option>
+              <div className="tb-stage-pick" role="group" aria-label={t("lifeStage")}>
+                {draft.stages.map((stage) => (
+                  <button
+                    key={stage.id}
+                    className={draft.lifeStage === stage.name ? "active" : ""}
+                    aria-pressed={draft.lifeStage === stage.name}
+                    title={valueLabel(stage.name)}
+                    onClick={() => setDraft({ ...draft, lifeStage: stage.name })}
+                  >
+                    <GameIcon entry={ageEntry(draft, stage.name)} />
+                    <span>{valueLabel(stage.name)}</span>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
+            <div className="field span-2">
+              <span>{t("status")}</span>
+              <div className="segmented wrap" role="group" aria-label={t("status")}>
+                {(["alive", "dead", "missing", "unknown"] as const).map((status) => {
+                  const StatusIcon = statusIcons[status];
+                  return (
+                    <button
+                      key={status}
+                      className={draft.status === status ? "active" : ""}
+                      aria-pressed={draft.status === status}
+                      onClick={() => setDraft({ ...draft, status: status as CharacterStatus })}
+                    >
+                      <StatusIcon size={16} />
+                      {t(status === "unknown" ? "notDefined" : status)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             {currentStage && (
               <CharacterPhotoInput
                 key={currentStage.id}
@@ -320,15 +362,21 @@ export function CharacterDialog({
             <div className="field span-2">
               <span>{t("cardColor")}</span>
               <div className="color-list">
-                {colors.map((color) => (
-                  <button
-                    key={color}
-                    aria-label={t("color", { color })}
-                    className={draft.color === color ? "active" : ""}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setDraft({ ...draft, color })}
-                  />
-                ))}
+                {colors.map(([color, name]) => {
+                  const active =
+                    draft.color.toLowerCase() === color.toLowerCase() ||
+                    displayColor(draft.color) === `var(--tb-p-${name})`;
+                  return (
+                    <button
+                      key={color}
+                      aria-label={t("color", { color })}
+                      aria-pressed={active}
+                      className={active ? "active" : ""}
+                      style={{ "--pc": `var(--tb-p-${name})` } as CSSProperties}
+                      onClick={() => setDraft({ ...draft, color })}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -504,7 +552,7 @@ export function CharacterDialog({
                 <div className="section-heading">
                   <span>{t("careerPeriod", { number: index + 1 })}</span>
                   <button
-                    className="icon-button danger-ghost"
+                    className="tb-icon-btn danger-ghost"
                     aria-label={t("removeCareerPeriod", { number: index + 1 })}
                     onClick={() => setCatalog({ careers: settings.careers.filter((item) => item.id !== period.id) })}
                   >
@@ -610,7 +658,7 @@ export function CharacterDialog({
           </div>
         )}
       </div>
-      <footer className="modal-footer character-dialog-footer">
+      <footer className="tb-panel-foot character-dialog-footer">
         {needsOwner && (
           <p id={ownerHintId} className="pet-owner-required" role="status">
             {t(owners.length ? "petOwnerRequired" : "petOwnerCreateFirst")}
@@ -625,10 +673,10 @@ export function CharacterDialog({
           disabled={!draft.displayName.trim() || needsOwner || photoReading}
           aria-describedby={needsOwner ? ownerHintId : undefined}
         >
-          <Plus size={17} />
+          {character ? <Check size={17} /> : <Plus size={17} />}
           {character ? t("save") : t("addToTree")}
         </button>
       </footer>
-    </Modal>
+    </PanelShell>
   );
 }

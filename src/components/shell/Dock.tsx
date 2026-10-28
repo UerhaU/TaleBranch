@@ -1,50 +1,27 @@
 import { useState } from "react";
-import {
-  BookOpenText,
-  CircleHelp,
-  Cog,
-  HeartHandshake,
-  Info,
-  MessageCircleQuestion,
-  RefreshCw,
-  SlidersHorizontal,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { BookOpenText, CircleHelp, Cog, HeartHandshake, Info, Keyboard, RefreshCw, Trash2, Users } from "lucide-react";
 import { TreeIcon } from "../TreeIcon";
-import { supportedLocales, useI18n, type LocalePreference } from "../../i18n";
+import { useI18n } from "../../i18n";
 import type { Dialogs, UtilityPanel } from "../../hooks/useDialogs";
-import type { Theme } from "../../types";
 import { Popover } from "./Popover";
 
 /** Bottom dock: work sections on the left, settings and help on the right. */
 export function Dock({
   hasProject,
-  loadError,
   trashCount,
   dialogs,
-  theme,
-  onTheme,
 }: {
   hasProject: boolean;
-  loadError: boolean;
   trashCount: number;
   dialogs: Dialogs;
-  theme: Theme;
-  onTheme: (theme: Theme) => void;
 }) {
-  const { t, preference, systemLocale, setPreference } = useI18n();
-  const [menu, setMenu] = useState<"settings" | "help">();
-  const detectedLocale = supportedLocales.find((item) => item.code === systemLocale)!;
+  const { t } = useI18n();
+  const [menu, setMenu] = useState<"help">();
   const { characterList, catalog, trash } = dialogs.state;
-  const openMenu = (name: "settings" | "help") => (open: boolean) => setMenu(open ? name : undefined);
+  const openMenu = (name: "help") => (open: boolean) => setMenu(open ? name : undefined);
   const utility = (panel: UtilityPanel) => {
     setMenu(undefined);
     dialogs.open("utility", panel);
-  };
-  const language = (value: LocalePreference) => {
-    setPreference(value);
-    setMenu(undefined);
   };
 
   return (
@@ -90,77 +67,14 @@ export function Dock({
         </button>
       )}
       <span className="tb-sep" />
-      <Popover
-        open={menu === "settings"}
-        onOpenChange={openMenu("settings")}
-        placement="up"
-        menuClassName="tb-settings-menu"
-        label={t("settings")}
-        trigger={
-          <button
-            className={`tb-icon-btn ${menu === "settings" ? "is-open" : ""}`}
-            title={t("settings")}
-            aria-haspopup="menu"
-            aria-expanded={menu === "settings"}
-            onClick={() => setMenu(menu === "settings" ? undefined : "settings")}
-          >
-            <Cog size={18} />
-          </button>
-        }
+      <button
+        className={`tb-icon-btn ${dialogs.state.settings ? "is-open" : ""}`}
+        title={`${t("settings")} (Ctrl ,)`}
+        aria-label={t("settings")}
+        onClick={() => dialogs.open("settings")}
       >
-        <button
-          className="tb-menu-item"
-          disabled={loadError || !hasProject}
-          onClick={() => {
-            setMenu(undefined);
-            dialogs.open("settings");
-          }}
-        >
-          <SlidersHorizontal size={18} />
-          <span>{t("projectSettings")}</span>
-        </button>
-        <label className="tb-toggle">
-          <span>{t("darkMode")}</span>
-          <input
-            type="checkbox"
-            checked={theme === "dark"}
-            onChange={(event) => onTheme(event.target.checked ? "dark" : "light")}
-          />
-          <i />
-        </label>
-        <div className="tb-menu-sep" />
-        <div className="tb-menu-label">
-          <span>{t("language")}</span>
-          <button
-            type="button"
-            className="tb-icon-btn translation-request"
-            title={t("requestTranslation")}
-            aria-label={t("requestTranslation")}
-          >
-            <MessageCircleQuestion size={15} />
-          </button>
-        </div>
-        <div className="tb-language-list" role="group" aria-label={t("language")}>
-          <button
-            className={`tb-menu-item ${preference === "system" ? "active" : ""}`}
-            aria-pressed={preference === "system"}
-            onClick={() => language("system")}
-          >
-            <span>{t("systemLanguage", { language: detectedLocale.label })}</span>
-          </button>
-          {supportedLocales.map((item) => (
-            <button
-              key={item.code}
-              lang={item.code}
-              className={`tb-menu-item ${preference === item.code ? "active" : ""}`}
-              aria-pressed={preference === item.code}
-              onClick={() => language(item.code)}
-            >
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </Popover>
+        <Cog size={18} />
+      </button>
       <Popover
         open={menu === "help"}
         onOpenChange={openMenu("help")}
@@ -182,6 +96,16 @@ export function Dock({
         <button className="tb-menu-item" onClick={() => utility("guide")}>
           <BookOpenText size={18} />
           <span>{t("guide")}</span>
+        </button>
+        <button
+          className="tb-menu-item"
+          onClick={() => {
+            setMenu(undefined);
+            dialogs.open("shortcuts");
+          }}
+        >
+          <Keyboard size={18} />
+          <span>{t("shortcuts")}</span>
         </button>
         <button className="tb-menu-item" onClick={() => utility("updates")}>
           <RefreshCw size={18} />

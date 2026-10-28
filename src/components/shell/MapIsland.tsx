@@ -14,6 +14,7 @@ export function MapIsland({
   dialogs,
   total,
   loadError,
+  showMinimap = true,
   onShowAll,
   onAutoLayout,
 }: {
@@ -21,6 +22,7 @@ export function MapIsland({
   dialogs: Dialogs;
   total: number;
   loadError: boolean;
+  showMinimap?: boolean;
   onShowAll: () => void;
   onAutoLayout: () => void;
 }) {
@@ -47,15 +49,15 @@ export function MapIsland({
         <button className="tb-icon-btn" title={t("graphZoomIn")} onClick={() => void flow.zoomIn({ duration: 200 })}>
           <Plus size={18} />
         </button>
-        <button className="tb-icon-btn" title={t("showAll")} onClick={onShowAll}>
+        <button className="tb-icon-btn" title={`${t("showAll")} (F)`} onClick={onShowAll}>
           <Maximize size={17} />
         </button>
         <button
           className="tb-icon-btn tb-autolayout"
           disabled={loadError}
           onClick={onAutoLayout}
-          title={t("autoLayout")}
-          aria-label={t("autoLayout")}
+          title={t("arrangeAuto")}
+          aria-label={t("arrangeAuto")}
         >
           <Network size={17} />
         </button>
@@ -130,15 +132,17 @@ export function MapIsland({
           </div>
         </Popover>
       </div>
-      <MiniMap
-        pannable
-        zoomable
-        className="mini-map"
-        style={{ width: 210, height: 120 }}
-        nodeColor={(node) => displayColor((node.data as CharacterNodeData).character.color)}
-        nodeBorderRadius={40}
-        maskColor="var(--tb-minimap-mask)"
-      />
+      {showMinimap && (
+        <MiniMap
+          pannable
+          zoomable
+          className="mini-map"
+          style={{ width: 210, height: 120 }}
+          nodeColor={(node) => displayColor((node.data as CharacterNodeData).character.color)}
+          nodeBorderRadius={40}
+          maskColor="var(--tb-minimap-mask)"
+        />
+      )}
     </div>
   );
 }

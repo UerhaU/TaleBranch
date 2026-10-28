@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { CharacterDialog } from "./CharacterDialog";
+import { CharacterEditor } from "./CharacterEditor";
 import { LanguageProvider } from "../i18n";
 import { createCharacter } from "../lib/project";
 import type { Character, PhotoTransform } from "../types";
@@ -92,7 +92,7 @@ function mount(character = createCharacter("Проверка"), ownerCandidates:
   act(() =>
     root.render(
       <LanguageProvider>
-        <CharacterDialog character={character} ownerCandidates={ownerCandidates} onClose={close} onSave={save} />
+        <CharacterEditor character={character} ownerCandidates={ownerCandidates} onClose={close} onSave={save} />
       </LanguageProvider>,
     ),
   );
@@ -161,7 +161,7 @@ describe("catalog-backed character editing", () => {
     act(() =>
       root.render(
         <LanguageProvider>
-          <CharacterDialog ownerCandidates={[owner]} onClose={vi.fn()} onSave={save} />
+          <CharacterEditor ownerCandidates={[owner]} onClose={vi.fn()} onSave={save} />
         </LanguageProvider>,
       ),
     );
@@ -206,7 +206,7 @@ describe("catalog-backed character editing", () => {
     const { save } = mount(character);
     await upload(new File(["photo"], "photo.jpg", { type: "image/jpeg" }));
     button("Применить тестовый кадр", document.body);
-    change(fieldSelect("Этап жизни"), "Пожилой");
+    button("Пожилой");
     button("Сохранить");
     const saved = save.mock.calls[0][0];
     expect(saved.stages.find((stage) => stage.name === character.lifeStage)?.photo).toBeDefined();
@@ -233,13 +233,13 @@ describe("catalog-backed character editing", () => {
     act(() =>
       root.render(
         <LanguageProvider>
-          <CharacterDialog ownerCandidates={[owner]} onClose={vi.fn()} onSave={save} />
+          <CharacterEditor ownerCandidates={[owner]} onClose={vi.fn()} onSave={save} />
         </LanguageProvider>,
       ),
     );
     change(container.querySelector<HTMLInputElement>("input")!, "Барсик");
     button("Питомец");
-    const submit = container.querySelector<HTMLButtonElement>(".modal-footer .primary")!;
+    const submit = container.querySelector<HTMLButtonElement>(".tb-panel-foot .primary")!;
     expect(submit.disabled).toBe(true);
     expect(container.querySelector('[role="status"]')?.textContent).toContain("выберите хотя бы одного хозяина");
     act(() => submit.click());
@@ -271,16 +271,16 @@ describe("catalog-backed character editing", () => {
     button("Сохранить");
     expect(save.mock.calls[0][0].ownerIds).toEqual(owners.map((item) => item.id));
     act(() => checkboxes[0].click());
-    expect(container.querySelector<HTMLButtonElement>(".modal-footer .primary")!.disabled).toBe(false);
+    expect(container.querySelector<HTMLButtonElement>(".tb-panel-foot .primary")!.disabled).toBe(false);
     act(() => checkboxes[1].click());
-    expect(container.querySelector<HTMLButtonElement>(".modal-footer .primary")!.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>(".tb-panel-foot .primary")!.disabled).toBe(true);
   });
 
   it("does not count unavailable owner IDs and requires ownership when converting a Sim into a pet", () => {
     const owner = createCharacter("Хозяин");
     const { save } = mount(createCharacter("Проверка", "sim", { ownerIds: ["deleted-owner"] }), [owner]);
     button("Питомец");
-    expect(container.querySelector<HTMLButtonElement>(".modal-footer .primary")!.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>(".tb-panel-foot .primary")!.disabled).toBe(true);
     button("Сохранить");
     expect(save).not.toHaveBeenCalled();
     act(() => container.querySelector<HTMLInputElement>(".owner-options input")!.click());

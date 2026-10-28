@@ -217,6 +217,7 @@ function CharacterPicker({
 export function LinkDialog({
   project,
   selectedId,
+  initialTo,
   initialKind = "parent",
   editing,
   onClose,
@@ -225,6 +226,7 @@ export function LinkDialog({
 }: {
   project: Project;
   selectedId?: string;
+  initialTo?: string;
   initialKind?: "parent" | "pair";
   editing?: LinkEdit;
   onClose: () => void;
@@ -241,7 +243,11 @@ export function LinkDialog({
     editedParent?.parentId ?? editedPair?.aId ?? selectedId ?? candidates[0]?.id ?? "",
   );
   const [toId, setToId] = useState(
-    editedParent?.childId ?? editedPair?.bId ?? candidates.find((item) => item.id !== fromId)?.id ?? fromId,
+    editedParent?.childId ??
+      editedPair?.bId ??
+      initialTo ??
+      candidates.find((item) => item.id !== fromId)?.id ??
+      fromId,
   );
   const [parentKind, setParentKind] = useState(editedParent?.kind ?? "Биологическое");
   const [parentRole, setParentRole] = useState(editedParent?.parentRole ?? "Родитель");

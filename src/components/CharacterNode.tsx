@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Bone, CircleUserRound, Ghost, PawPrint, Skull } from "lucide-react";
+import { Bone, CircleUserRound, Ghost, HeartHandshake, PawPrint, Plus, Skull } from "lucide-react";
 import type { Character } from "../types";
 import { useI18n } from "../i18n";
 import { CatalogValue } from "./CatalogDisplay";
@@ -13,6 +13,16 @@ export type CharacterNodeData = {
   selectedPetId?: string;
   onOpen: (id: string) => void;
 };
+
+export type QuickKind = "parent" | "child" | "relation";
+/**
+ * The quick «+» around the selected card: a click creates a linked character,
+ * dragging it onto another card links the two.
+ */
+export const QuickLinkContext = createContext<
+  | { start: (event: PointerEvent, kind: QuickKind, id: string) => void; click: (kind: QuickKind, id: string) => void }
+  | undefined
+>(undefined);
 
 function activePhoto(character: Character) {
   const stage = character.stages.find((item) => item.name === character.lifeStage);
@@ -63,8 +73,17 @@ const statusIcons = { dead: Skull, missing: Ghost, unknown: Bone };
 
 export function CharacterNode({ data }: NodeProps) {
   const { t } = useI18n();
+  const quick = useContext(QuickLinkContext);
   const nodeData = data as CharacterNodeData;
   const { character, pets, onOpen } = nodeData;
+  const quickButtons: Array<[QuickKind, string, ReactNode]> =
+    character.type === "pet"
+      ? [["relation", t("addRelations"), <HeartHandshake size={14} />]]
+      : [
+          ["parent", t("addParent"), <Plus size={15} />],
+          ["child", t("addChild"), <Plus size={15} />],
+          ["relation", t("addRelations"), <HeartHandshake size={14} />],
+        ];
   const StatusIcon = character.status !== "alive" ? statusIcons[character.status] : undefined;
 
   return (
@@ -99,6 +118,7 @@ export function CharacterNode({ data }: NodeProps) {
                   "--pet-accent": displayColor(pet.color),
                 } as CSSProperties
               }
+              data-character-id={pet.id}
               aria-label={`${t("pet")}: ${pet.displayName}`}
               title={pet.displayName}
               onClick={(event) => {
@@ -129,6 +149,25 @@ export function CharacterNode({ data }: NodeProps) {
           />
         </span>
       </div>
+      {nodeData.selected &&
+        quick &&
+        quickButtons.map(([kind, label, icon]) => (
+          <button
+            key={kind}
+            type="button"
+            className={`tb-quick tb-quick-${kind} nodrag nopan`}
+            aria-label={label}
+            title={`${label}. ${t("quickHint")}`}
+            onPointerDown={(event) => quick.start(event, kind, character.id)}
+            onClick={(event) => {
+              event.stopPropagation();
+              quick.click(kind, character.id);
+            }}
+            onDoubleClick={(event) => event.stopPropagation()}
+          >
+            {icon}
+          </button>
+        ))}
       <Handle type="source" position={Position.Bottom} className="node-handle" isConnectable={false} />
     </article>
   );

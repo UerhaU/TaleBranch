@@ -1,4 +1,3 @@
-import { CharacterDialog } from "../CharacterDialog";
 import { LinkDialog } from "../LinkDialog";
 import { Modal } from "../Modal";
 import { PhotoEditor } from "../PhotoEditor";
@@ -7,23 +6,21 @@ import type { ProjectApi } from "../../hooks/projectApi";
 import type { Dialogs } from "../../hooks/useDialogs";
 import type { PhotoTransform } from "../../types";
 
-/** Windows for adding and editing characters, links and photos, plus the undoable confirmation. */
+/** Windows for links and photos, plus the undoable confirmation. */
 export function CharacterDialogs({
   app,
   dialogs,
   selectedId,
-  onSelect,
   notify,
 }: {
   app: ProjectApi;
   dialogs: Dialogs;
   selectedId?: string;
-  onSelect: (id: string) => void;
   notify: (message: string) => void;
 }) {
   const { t } = useI18n();
   const { project } = app;
-  const { addCharacter, editCharacter, link, photo, confirm } = dialogs.state;
+  const { link, photo, confirm } = dialogs.state;
 
   const savePhoto = (edited: string, transform: PhotoTransform) => {
     if (!photo) return;
@@ -44,41 +41,11 @@ export function CharacterDialogs({
 
   return (
     <>
-      {addCharacter && (
-        <CharacterDialog
-          initialType={addCharacter.type}
-          ownerCandidates={project.characters}
-          onClose={() => dialogs.close("addCharacter")}
-          onSave={(character) => {
-            if (!app.addCharacter(character)) {
-              notify(t("petOwnerRequired"));
-              return;
-            }
-            onSelect(character.id);
-            dialogs.close("addCharacter");
-            notify(t("characterAdded"));
-          }}
-        />
-      )}
-      {editCharacter && (
-        <CharacterDialog
-          character={editCharacter}
-          ownerCandidates={project.characters}
-          onClose={() => dialogs.close("editCharacter")}
-          onSave={(character) => {
-            if (!app.updateCharacter(character.id, character)) {
-              notify(t("petOwnerRequired"));
-              return;
-            }
-            dialogs.close("editCharacter");
-            notify(t("profileUpdated"));
-          }}
-        />
-      )}
       {link && (
         <LinkDialog
           project={project}
-          selectedId={selectedId}
+          selectedId={link.fromId ?? selectedId}
+          initialTo={link.toId}
           initialKind={link.kind}
           editing={link.editing}
           onClose={() => dialogs.close("link")}

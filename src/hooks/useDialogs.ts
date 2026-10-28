@@ -8,7 +8,13 @@ export type PermanentDeleteDraft = { projectId: string } & (
   { kind: "character"; id: string; name: string } | { kind: "trash"; ids: string[] } | { kind: "dynasty"; name: string }
 );
 export type ConfirmAction = { title: string; run: () => void };
-export type LinkDialogState = { kind: "parent" | "pair"; editing?: LinkEdit };
+export type LinkDialogState = { kind: "parent" | "pair"; editing?: LinkEdit; fromId?: string; toId?: string };
+/** A new character from «+ Add», the right-click menu or a quick «+»: maybe already a child or parent of someone. */
+export type NewCharacterDraft = {
+  type: CharacterType;
+  relative?: { id: string; as: "child" | "parent" };
+  position?: { x: number; y: number };
+};
 export type UtilityPanel = "guide" | "updates" | "donation";
 
 /**
@@ -19,7 +25,7 @@ export type UtilityPanel = "guide" | "updates" | "donation";
 type DialogValues = {
   projectMenu: true;
   filters: true;
-  addCharacter: { type: CharacterType };
+  addCharacter: NewCharacterDraft;
   editCharacter: Character;
   link: LinkDialogState;
   photo: PhotoDraft;
@@ -30,6 +36,7 @@ type DialogValues = {
   trash: true;
   catalog: true;
   about: true;
+  shortcuts: true;
   utility: UtilityPanel;
   permanentDelete: PermanentDeleteDraft;
 };

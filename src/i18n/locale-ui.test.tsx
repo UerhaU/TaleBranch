@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LanguageProvider, useI18n, type LocaleCode, translateMessage } from "./index";
-import { CharacterDialog } from "../components/CharacterDialog";
+import { CharacterEditor } from "../components/CharacterEditor";
 import { LinkDialog } from "../components/LinkDialog";
 import { createCharacter, createDemoProject } from "../lib/project";
 
@@ -47,7 +47,7 @@ describe("localized profile forms", () => {
     act(() =>
       root.render(
         <LanguageProvider>
-          <CharacterDialog character={pet} ownerCandidates={[owner]} onClose={vi.fn()} onSave={save} />
+          <CharacterEditor character={pet} ownerCandidates={[owner]} onClose={vi.fn()} onSave={save} />
         </LanguageProvider>,
       ),
     );
@@ -82,7 +82,7 @@ describe("localized profile forms", () => {
       root.render(
         <LanguageProvider>
           <LanguageControl />
-          <CharacterDialog character={character} onClose={vi.fn()} onSave={save} />
+          <CharacterEditor character={character} onClose={vi.fn()} onSave={save} />
         </LanguageProvider>,
       ),
     );
@@ -107,15 +107,17 @@ describe("localized profile forms", () => {
       act(() =>
         root.render(
           <LanguageProvider>
-            <CharacterDialog character={character} onClose={vi.fn()} onSave={vi.fn()} />
+            <CharacterEditor character={character} onClose={vi.fn()} onSave={vi.fn()} />
           </LanguageProvider>,
         ),
       );
-      const age = container.querySelector<HTMLSelectElement>(".age-select select")!;
-      const options = Array.from(age.options);
-      expect(options.find((item) => item.value === "Молодой")?.text).toBe(translateMessage(locale, "stageYoungAdult"));
-      expect(options.find((item) => item.value === "Взрослый")?.text).toBe(translateMessage(locale, "stageAdult"));
-      expect(age.value).toBe("Молодой");
+      const options = Array.from(container.querySelectorAll<HTMLButtonElement>(".tb-stage-pick button"));
+      const labels = options.map((item) => item.textContent);
+      expect(labels).toContain(translateMessage(locale, "stageYoungAdult"));
+      expect(labels).toContain(translateMessage(locale, "stageAdult"));
+      expect(options.find((item) => item.getAttribute("aria-pressed") === "true")?.textContent).toBe(
+        translateMessage(locale, "stageYoungAdult"),
+      );
       expect(options).toHaveLength(8);
     },
   );

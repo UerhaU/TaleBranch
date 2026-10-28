@@ -3,7 +3,8 @@ import { useProject } from "./hooks/useProject";
 import { useDialogs } from "./hooks/useDialogs";
 import { useDynastyFiles } from "./hooks/useDynastyFiles";
 import { useShortcuts } from "./hooks/useShortcuts";
-import { useTheme } from "./hooks/useTheme";
+import { useAppearance } from "./hooks/useAppearance";
+import { useCharacterActions } from "./hooks/useCharacterActions";
 import { useToast } from "./hooks/useToast";
 import { useTreeView } from "./hooks/useTreeView";
 import { useI18n } from "./i18n";
@@ -24,7 +25,8 @@ import { CharacterListDialog } from "./components/dialogs/CharacterListDialog";
 import { DeleteCharacterDialog } from "./components/dialogs/DeleteCharacterDialog";
 import { ImportDynastyDialog, NewDynastyDialog } from "./components/dialogs/DynastyFolderDialogs";
 import { PermanentDeletePrompt } from "./components/dialogs/PermanentDeletePrompt";
-import { ProjectSettingsDialog } from "./components/dialogs/ProjectSettingsDialog";
+import { SettingsDialog } from "./components/dialogs/SettingsDialog";
+import { ShortcutsDialog } from "./components/dialogs/ShortcutsDialog";
 import { TrashDialog } from "./components/dialogs/TrashDialog";
 import { UtilityDialog } from "./components/dialogs/UtilityDialog";
 
@@ -32,7 +34,7 @@ export default function App() {
   const { t } = useI18n();
   const app = useProject();
   const { project } = app;
-  const [theme, setTheme] = useTheme();
+  const appearance = useAppearance();
   const dialogs = useDialogs();
   const view = useTreeView(project);
   const { toast, notify } = useToast();
@@ -48,8 +50,19 @@ export default function App() {
   });
   const flowInstance = useRef<FlowInstance | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
-  useShortcuts(app, notify, searchInput);
   const { selected } = view;
+  const { actions, photoInput, acceptPhoto } = useCharacterActions({ app, dialogs, view, flowInstance, notify, t });
+  const showAll = () => flowInstance.current?.fitView({ duration: 400, padding: fitPadding() });
+  useShortcuts({
+    app,
+    notify,
+    searchInput,
+    dialogs,
+    selectedId: view.selectedId,
+    actions,
+    onDeselect: () => view.setSelectedId(undefined),
+    onShowAll: showAll,
+  });
   const permanentDelete = dialogs.state.permanentDelete;
 
   useEffect(() => {
@@ -62,6 +75,9 @@ export default function App() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [project.id, app.hasProject]);
+
+  // Another dynasty or a closed one: an unfinished new or edited character belongs to the old one.
+  useEffect(() => dialogs.close("addCharacter", "editCharacter"), [project.id, app.hasProject, dialogs.close]);
 
   const runAutoLayout = () => {
     const positions = autoLayout(project);
@@ -114,7 +130,7 @@ export default function App() {
     }
   };
 
-  const hasInspector = app.hasProject && Boolean(selected);
+  const hasInspector = app.hasProject && Boolean(selected || dialogs.state.addCharacter || dialogs.state.editCharacter);
   return (
     <div className={`tb-app app-shell ${hasInspector ? "has-inspector" : ""}`} inert={files.folderWorking || app.busy}>
       {!app.hasProject ? (
@@ -129,8 +145,10 @@ export default function App() {
             view={view}
             dialogs={dialogs}
             flowInstance={flowInstance}
-            onAddCharacter={() => dialogs.open("addCharacter", { type: "sim" })}
-            onShowAll={() => flowInstance.current?.fitView({ duration: 400, padding: fitPadding() })}
+            actions={actions}
+            showMinimap={appearance.showMinimap}
+            onAddCharacter={(position) => dialogs.open("addCharacter", { type: "sim", position })}
+            onShowAll={showAll}
             onAutoLayout={runAutoLayout}
           />
           <Topbar
@@ -143,25 +161,31 @@ export default function App() {
             onDeleteDynasty={requestDeleteDynasty}
           />
           <StorageErrorBar app={app} onExport={files.exportProject} />
-          {selected && (
+          {hasInspector && (
             <InspectorPanel
               app={app}
               selected={selected}
               dialogs={dialogs}
+              actions={actions}
               notify={notify}
+              onSelect={view.setSelectedId}
+              onPhoto={(file, characterId, stageName) => void acceptPhoto(file, characterId, stageName)}
               onClose={() => view.setSelectedId(undefined)}
             />
           )}
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={(event) => {
+              void acceptPhoto(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
         </>
       )}
-      <Dock
-        hasProject={app.hasProject}
-        loadError={app.loadError}
-        trashCount={project.trashedCharacters.length}
-        dialogs={dialogs}
-        theme={theme}
-        onTheme={setTheme}
-      />
+      <Dock hasProject={app.hasProject} trashCount={project.trashedCharacters.length} dialogs={dialogs} />
       <input
         ref={files.importInput}
         type="file"
@@ -172,20 +196,17 @@ export default function App() {
 
       {dialogs.state.catalog && <CatalogBrowser onClose={() => dialogs.close("catalog")} />}
 
-      <CharacterDialogs
-        app={app}
-        dialogs={dialogs}
-        selectedId={view.selectedId}
-        onSelect={view.setSelectedId}
-        notify={notify}
-      />
+      <CharacterDialogs app={app} dialogs={dialogs} selectedId={view.selectedId} notify={notify} />
       {dialogs.state.settings && (
-        <ProjectSettingsDialog
+        <SettingsDialog
+          appearance={appearance}
           app={app}
+          view={view}
           onClose={() => dialogs.close("settings")}
           onDeleteDynasty={requestDeleteDynasty}
         />
       )}
+      {dialogs.state.shortcuts && <ShortcutsDialog onClose={() => dialogs.close("shortcuts")} />}
       {dialogs.state.characterList && (
         <CharacterListDialog project={project} onPick={focusCharacter} onClose={() => dialogs.close("characterList")} />
       )}
@@ -196,7 +217,7 @@ export default function App() {
           onConfirm={() => {
             app.deleteCharacter(dialogs.state.deleteCharacter!.character.id);
             view.setSelectedId(undefined);
-            dialogs.close("deleteCharacter");
+            dialogs.close("deleteCharacter", "editCharacter");
             notify(t("movedToTrash"));
           }}
         />
