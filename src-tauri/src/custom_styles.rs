@@ -39,7 +39,9 @@ impl CustomStyles {
         for kind in KINDS {
             let _ = fs::create_dir_all(data.join(kind));
         }
-        Self { root: data.to_path_buf() }
+        Self {
+            root: data.to_path_buf(),
+        }
     }
 
     fn folder(&self, kind: &str) -> Result<PathBuf> {
@@ -125,9 +127,18 @@ mod tests {
         fs::write(data.join("recent-folders.css"), "outside").unwrap();
 
         let list = styles.list().unwrap();
-        assert_eq!(list.snippets.iter().map(|f| f.file.as_str()).collect::<Vec<_>>(), ["round.css"]);
-        assert_eq!(list.themes.iter().map(|f| f.file.as_str()).collect::<Vec<_>>(), ["my-theme.css"]);
-        assert_eq!(styles.read("snippets", "round.css").unwrap(), ".tb-avatar { border-radius: 50%; }");
+        assert_eq!(
+            list.snippets.iter().map(|f| f.file.as_str()).collect::<Vec<_>>(),
+            ["round.css"]
+        );
+        assert_eq!(
+            list.themes.iter().map(|f| f.file.as_str()).collect::<Vec<_>>(),
+            ["my-theme.css"]
+        );
+        assert_eq!(
+            styles.read("snippets", "round.css").unwrap(),
+            ".tb-avatar { border-radius: 50%; }"
+        );
         assert_eq!(styles.read("themes", "my-theme.css").unwrap(), "/* name: Mine */");
     }
 
@@ -158,7 +169,11 @@ mod tests {
     fn refuses_files_over_one_megabyte() {
         let temp = tempfile::tempdir().unwrap();
         let styles = CustomStyles::new(temp.path());
-        fs::write(temp.path().join("snippets/big.css"), vec![b' '; (MAX_SIZE + 1) as usize]).unwrap();
+        fs::write(
+            temp.path().join("snippets/big.css"),
+            vec![b' '; (MAX_SIZE + 1) as usize],
+        )
+        .unwrap();
         assert!(styles.read("snippets", "big.css").is_err());
         assert!(styles.list().unwrap().snippets.is_empty());
     }
