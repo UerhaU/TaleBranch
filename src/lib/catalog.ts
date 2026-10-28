@@ -152,6 +152,12 @@ export function emptyCharacterCatalog(): CharacterCatalog {
     skills: [],
     preferences: [],
     careers: [],
+    customTraits: [],
+    customAspiration: "",
+    customOccults: [],
+    customDeathCause: "",
+    customSkills: [],
+    customPreferences: [],
   };
 }
 
@@ -164,31 +170,30 @@ export function entryForLegacy(
   return matches.length === 1 ? matches[0] : undefined;
 }
 
-/** Resolve exact, unambiguous old labels only in the dialog draft, never during load. */
+/** Resolve exact, unambiguous custom labels only in the dialog draft, never during load. */
 export function prepareCatalogDraft(character: Character): Character {
   const result = structuredClone(character);
   result.catalog = { ...emptyCharacterCatalog(), ...result.catalog };
   const settings = result.catalog;
-  result.traits = result.traits.filter((value) => {
-    const entry = entryForLegacy("traits", value, result);
-    if (!entry) return true;
-    if (!settings.traitIds.includes(entry.id)) settings.traitIds.push(entry.id);
-    return false;
-  });
   for (const [field, kind, target] of [
-    ["aspiration", "aspirations", "aspirationId"],
-    ["deathCause", "deathCauses", "deathCauseId"],
+    ["customTraits", "traits", "traitIds"],
+    ["customOccults", "occults", "occultIds"],
+  ] as const)
+    settings[field] = settings[field].filter((value) => {
+      const entry = entryForLegacy(kind, value, result);
+      if (!entry) return true;
+      if (!settings[target].includes(entry.id)) settings[target].push(entry.id);
+      return false;
+    });
+  for (const [field, kind, target] of [
+    ["customAspiration", "aspirations", "aspirationId"],
+    ["customDeathCause", "deathCauses", "deathCauseId"],
   ] as const) {
-    const entry = entryForLegacy(kind, result[field], result);
+    const entry = entryForLegacy(kind, settings[field], result);
     if (entry && !settings[target]) {
       settings[target] = entry.id;
-      result[field] = "";
+      settings[field] = "";
     }
-  }
-  const occult = entryForLegacy("occults", result.occultType, result);
-  if (occult) {
-    if (!settings.occultIds.includes(occult.id)) settings.occultIds.push(occult.id);
-    result.occultType = "";
   }
   return result;
 }

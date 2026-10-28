@@ -75,13 +75,14 @@ describe("game catalogs and existing projects", () => {
     expect(ageEntry({ type: "pet", species: "Собака", lifeStage: "Детёныш" })?.label).toBe("Щенок");
   });
   it("resolves exact old labels only in a draft and preserves custom text", () => {
-    const source = createCharacter("", "sim", { traits: ["Гений", "Своя необычная черта"], aspiration: "Моя цель" });
+    const catalog = { ...emptyCharacterCatalog(), customTraits: ["Гений", "Своя необычная черта"] };
+    const source = createCharacter("", "sim", { catalog: { ...catalog, customAspiration: "Моя цель" } });
     const draft = prepareCatalogDraft(source);
     expect(draft.catalog?.traitIds).toContain("trait_Genius");
-    expect(draft.traits).toEqual(["Своя необычная черта"]);
-    expect(draft.aspiration).toBe("Моя цель");
-    expect(source.catalog).toBeUndefined();
-    expect(source.traits).toEqual(["Гений", "Своя необычная черта"]);
+    expect(draft.catalog?.customTraits).toEqual(["Своя необычная черта"]);
+    expect(draft.catalog?.customAspiration).toBe("Моя цель");
+    expect(source.catalog?.traitIds).toEqual([]);
+    expect(source.catalog?.customTraits).toEqual(["Гений", "Своя необычная черта"]);
   });
   it("retains all new values through project parsing without catalog copies", () => {
     const project = createEmptyProject();

@@ -191,25 +191,26 @@ export function Inspector({
     ] as const
   ).filter(([, value]) => value);
   const catalogFacts: Array<[string, ReactNode]> = [];
-  if (occultIds.length || character.occultType)
+  const customOccults = catalog?.customOccults ?? [];
+  if (occultIds.length || customOccults.length)
     catalogFacts.push([
       "occultType",
       <>
         {occultIds.map((id) => (
           <CatalogValue key={id} kind="occults" id={id} character={character} />
         ))}
-        {character.occultType && !occultIds.length && (
-          <CatalogValue kind="occults" value={character.occultType} character={character} />
-        )}
+        {customOccults.map((value, index) => (
+          <CatalogValue key={`custom-${index}`} kind="occults" value={value} character={character} />
+        ))}
       </>,
     ]);
-  if (catalog?.deathCauseId || character.deathCause)
+  if (catalog?.deathCauseId || catalog?.customDeathCause)
     catalogFacts.push([
       "deathCause",
       <CatalogValue
         kind="deathCauses"
         id={catalog?.deathCauseId}
-        value={character.deathCause || undefined}
+        value={catalog?.customDeathCause || undefined}
         character={character}
       />,
     ]);
@@ -227,10 +228,10 @@ export function Inspector({
     catalogFacts.push(["neutered", t(catalog.neutered)]);
 
   const traitIds = catalog?.traitIds ?? [];
-  const legacyTraits = unmatched(character.traits, (value) =>
+  const legacyTraits = unmatched(catalog?.customTraits ?? [], (value) =>
     traitIds.some((id) => catalogEntry("traits", id)?.label === value),
   );
-  const hasGoal = character.type !== "pet" && Boolean(catalog?.aspirationId || character.aspiration);
+  const hasGoal = character.type !== "pet" && Boolean(catalog?.aspirationId || catalog?.customAspiration);
   const links = [
     ...parents.map((link) => [link.parentId, valueLabel(link.parentRole)] as const),
     ...children.map((link) => [link.childId, valueLabel(link.childRole)] as const),
@@ -256,10 +257,10 @@ export function Inspector({
 
   const skills = catalog?.skills ?? [];
   const preferences = catalog?.preferences ?? [];
-  const legacySkills = unmatched(character.skills, (value) =>
+  const legacySkills = unmatched(catalog?.customSkills ?? [], (value) =>
     skills.some((item) => catalogEntry("skills", item.id)?.label === value),
   );
-  const legacyPreferences = unmatched(character.preferences, (value) =>
+  const legacyPreferences = unmatched(catalog?.customPreferences ?? [], (value) =>
     preferences.some((item) => catalogEntry("preferences", item.id)?.label === value),
   );
   const traitsEmpty =
@@ -387,7 +388,7 @@ export function Inspector({
                   <CatalogValue
                     kind="aspirations"
                     id={catalog?.aspirationId}
-                    value={character.aspiration || undefined}
+                    value={catalog?.customAspiration || undefined}
                     character={character}
                   />
                 </div>

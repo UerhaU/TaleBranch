@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { CharacterEditor } from "./CharacterEditor";
 import { LanguageProvider } from "../i18n";
+import { emptyCharacterCatalog } from "../lib/catalog";
 import { createCharacter } from "../lib/project";
 import type { Character, PhotoTransform } from "../types";
 
@@ -289,22 +290,26 @@ describe("catalog-backed character editing", () => {
   });
 
   it("selects a trait with its icon while preserving old custom text", () => {
-    const { save } = mount(createCharacter("Проверка", "sim", { traits: ["Своя черта"] }));
+    const { save } = mount(
+      createCharacter("Проверка", "sim", { catalog: { ...emptyCharacterCatalog(), customTraits: ["Своя черта"] } }),
+    );
     button("Характеристики");
     choose("Черты характера", "Гений", "Гений");
     expect(container.querySelector(".catalog-chip img")?.getAttribute("src")).toContain("/game-icons/");
     button("Сохранить");
     expect(save.mock.calls[0][0].catalog?.traitIds).toContain("trait_Genius");
-    expect(save.mock.calls[0][0].traits).toEqual(["Своя черта"]);
+    expect(save.mock.calls[0][0].catalog?.customTraits).toEqual(["Своя черта"]);
   });
   it("keeps the 15-level skill limit and custom legacy skills", () => {
-    const { save } = mount(createCharacter("Проверка", "sim", { skills: ["Свое умение"] }));
+    const { save } = mount(
+      createCharacter("Проверка", "sim", { catalog: { ...emptyCharacterCatalog(), customSkills: ["Свое умение"] } }),
+    );
     button("Навыки и предпочтения");
     choose("Навыки", "Вампиризм", "Вампиризм");
     change(input("Уровень Вампиризм"), "20");
     button("Сохранить");
     expect(save.mock.calls[0][0].catalog?.skills).toEqual([{ id: "statistic_Skill_Hidden_VampireLore", level: 15 }]);
-    expect(save.mock.calls[0][0].skills).toEqual(["Свое умение"]);
+    expect(save.mock.calls[0][0].catalog?.customSkills).toEqual(["Свое умение"]);
   });
   it("saves the selected career, level and notes without losing the selection", () => {
     const { save } = mount();

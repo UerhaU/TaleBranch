@@ -51,6 +51,13 @@ export interface CharacterCatalog {
   skills: SkillValue[];
   preferences: PreferenceValue[];
   careers: CareerPeriod[];
+  /** The user's own values that are not in the game catalog. */
+  customTraits: string[];
+  customAspiration: string;
+  customOccults: string[];
+  customDeathCause: string;
+  customSkills: string[];
+  customPreferences: string[];
 }
 
 export interface LifeStage {
@@ -72,19 +79,13 @@ export interface Character {
   status: CharacterStatus;
   pronouns: string;
   gender: string;
-  occultType: string;
   birthDate: string;
   deathDate: string;
   generation: number;
   household: string;
   world: string;
   lot: string;
-  aspiration: string;
-  traits: string[];
-  preferences: string[];
-  skills: string[];
   education: string;
-  deathCause: string;
   biography: string;
   notes: string;
   tags: string[];

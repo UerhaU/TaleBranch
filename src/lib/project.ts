@@ -1,4 +1,5 @@
 import type { Character, CharacterType, PairLink, ParentLink, Project } from "../types";
+import { emptyCharacterCatalog } from "./catalog";
 import { makeId } from "./id";
 import { createStages, defaultStage } from "./stages";
 
@@ -24,19 +25,13 @@ export function createCharacter(
     status: "alive",
     pronouns: "",
     gender: "",
-    occultType: "",
     birthDate: "",
     deathDate: "",
     generation: 1,
     household: "",
     world: "",
     lot: "",
-    aspiration: "",
-    traits: [],
-    preferences: [],
-    skills: [],
     education: "",
-    deathCause: "",
     biography: "",
     notes: "",
     tags: [],
@@ -66,6 +61,12 @@ export function createEmptyProject(name = ""): Project {
   };
 }
 
+const demoCatalog = (customTraits: string[], customAspiration = "") => ({
+  ...emptyCharacterCatalog(),
+  customTraits,
+  customAspiration,
+});
+
 export function createDemoProject(): Project {
   const elena = createCharacter("Елена Воронова", "sim", {
     id: "char_elena",
@@ -75,8 +76,7 @@ export function createDemoProject(): Project {
     generation: 1,
     household: "Дом Вороновых",
     world: "Винденбург",
-    aspiration: "Большая счастливая семья",
-    traits: ["Семейная", "Творец", "Добрая"],
+    catalog: demoCatalog(["Семейная", "Творец", "Добрая"], "Большая счастливая семья"),
     tags: ["Основательница"],
     biography: "Основательница династии. Превратила старый особняк у моря в дом для большой семьи.",
     color: "#3D1534",
@@ -90,7 +90,7 @@ export function createDemoProject(): Project {
     generation: 1,
     household: "Дом Вороновых",
     world: "Винденбург",
-    traits: ["Меломан", "Романтик", "Амбициозный"],
+    catalog: demoCatalog(["Меломан", "Романтик", "Амбициозный"]),
     color: "#6D78B2",
   });
   const vera = createCharacter("Вера Воронова", "sim", {
@@ -101,8 +101,7 @@ export function createDemoProject(): Project {
     generation: 2,
     household: "Дом Вороновых",
     world: "Винденбург",
-    aspiration: "Исключительный художник",
-    traits: ["Творец", "Перфекционист", "Одиночка"],
+    catalog: demoCatalog(["Творец", "Перфекционист", "Одиночка"], "Исключительный художник"),
     tags: ["Наследница"],
     biography: "Художница и хранительница семейного архива.",
     color: "#C69D63",
@@ -115,7 +114,7 @@ export function createDemoProject(): Project {
     generation: 2,
     household: "Дом Вороновых",
     world: "Винденбург",
-    traits: ["Книжный червь", "Верный", "Гурман"],
+    catalog: demoCatalog(["Книжный червь", "Верный", "Гурман"]),
     color: "#8AA6B6",
   });
   const nika = createCharacter("Ника Воронова", "sim", {
@@ -126,8 +125,7 @@ export function createDemoProject(): Project {
     generation: 3,
     household: "Дом Вороновых",
     world: "Винденбург",
-    aspiration: "Звезда сцены",
-    traits: ["Самоуверенная", "Общительная"],
+    catalog: demoCatalog(["Самоуверенная", "Общительная"], "Звезда сцены"),
     tags: ["Третье поколение"],
     biography: "Мечтает собрать собственную группу и уехать на гастроли.",
     color: "#6F4B68",
@@ -141,7 +139,7 @@ export function createDemoProject(): Project {
     ownerIds: [nika.id],
     household: "Дом Вороновых",
     species: "Собака",
-    traits: ["Верная", "Игривый", "Любопытная"],
+    catalog: demoCatalog(["Верная", "Игривый", "Любопытная"]),
     tags: ["Любимица семьи"],
     color: "#C69D63",
   });

@@ -164,9 +164,9 @@ function CharacterEditorForm({
     ...(draft.type === "pet" ? [] : [["career", "career"]]),
     ["story", "story"],
   ];
-  const customLists = (field: "traits" | "skills" | "preferences") => ({
-    customValues: draft[field],
-    onCustomValuesChange: (values: string[]) => setDraft((current) => ({ ...current, [field]: values })),
+  const customLists = (field: "customTraits" | "customSkills" | "customPreferences") => ({
+    customValues: settings[field],
+    onCustomValuesChange: (values: string[]) => setCatalog({ [field]: values }),
   });
   return (
     <PanelShell
@@ -430,7 +430,7 @@ function CharacterEditorForm({
               selected={settings.traitIds}
               onChange={(traitIds) => setCatalog({ traitIds })}
               multiple
-              {...customLists("traits")}
+              {...customLists("customTraits")}
             />
             {!!conflicts.length && (
               <p className="catalog-warning" role="status">
@@ -445,8 +445,8 @@ function CharacterEditorForm({
                 options={options("aspirations")}
                 selected={settings.aspirationId ? [settings.aspirationId] : []}
                 onChange={(ids) => setCatalog({ aspirationId: ids[0] ?? "" })}
-                customValue={draft.aspiration}
-                onCustomChange={(aspiration) => setDraft((current) => ({ ...current, aspiration }))}
+                customValue={settings.customAspiration}
+                onCustomChange={(customAspiration) => setCatalog({ customAspiration })}
               />
             )}
             <CatalogPicker
@@ -456,8 +456,8 @@ function CharacterEditorForm({
               selected={settings.occultIds}
               onChange={(occultIds) => setCatalog({ occultIds })}
               multiple
-              customValues={draft.occultType ? [draft.occultType] : []}
-              onCustomValuesChange={(values) => setDraft((current) => ({ ...current, occultType: values.join(", ") }))}
+              customValues={settings.customOccults}
+              onCustomValuesChange={(customOccults) => setCatalog({ customOccults })}
             />
             <CatalogPicker
               label={t("deathCause")}
@@ -465,8 +465,8 @@ function CharacterEditorForm({
               options={options("deathCauses")}
               selected={settings.deathCauseId ? [settings.deathCauseId] : []}
               onChange={(ids) => setCatalog({ deathCauseId: ids[0] ?? "" })}
-              customValue={draft.deathCause}
-              onCustomChange={(deathCause) => setDraft((current) => ({ ...current, deathCause }))}
+              customValue={settings.customDeathCause}
+              onCustomChange={(customDeathCause) => setCatalog({ customDeathCause })}
             />
           </div>
         )}
@@ -487,7 +487,7 @@ function CharacterEditorForm({
                   skills: ids.map((id) => settings.skills.find((item) => item.id === id) ?? { id, level: 1 }),
                 })
               }
-              {...customLists("skills")}
+              {...customLists("customSkills")}
             />
             {!!settings.skills.length && (
               <div className="catalog-value-list">
@@ -543,7 +543,7 @@ function CharacterEditorForm({
                       ),
                     })
                   }
-                  {...customLists("preferences")}
+                  {...customLists("customPreferences")}
                 />
                 {!!settings.preferences.length && (
                   <div className="catalog-value-list">

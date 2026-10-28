@@ -27,12 +27,21 @@ function catalog(value: unknown): CharacterCatalog {
   const raw = record(value);
   if (raw.version !== 1) invalid();
   const result = emptyCharacterCatalog();
-  for (const key of ["aspirationId", "breedId", "customBreed", "deathCauseId"] as const)
+  for (const key of [
+    "aspirationId",
+    "breedId",
+    "customBreed",
+    "deathCauseId",
+    "customAspiration",
+    "customDeathCause",
+  ] as const)
     result[key] = string(raw[key] ?? "");
   for (const key of ["traitIds", "occultIds"] as const) {
     result[key] = array(raw[key] ?? []).map(string);
     unique(result[key]);
   }
+  for (const key of ["customTraits", "customOccults", "customSkills", "customPreferences"] as const)
+    result[key] = array(raw[key] ?? []).map(string);
   result.neutered = oneOf(raw.neutered ?? "unknown", ["unknown", "yes", "no"]);
   result.skills = array(raw.skills ?? []).map((item) => {
     const row = record(item);
@@ -67,6 +76,36 @@ function catalog(value: unknown): CharacterCatalog {
   return result;
 }
 
+const mergeLists = (current: string[], legacy: string[]) => [
+  ...current,
+  ...legacy.filter((value, index) => value.trim() && !current.includes(value) && legacy.indexOf(value) === index),
+];
+const mergeTexts = (current: string, legacy: string) =>
+  !legacy.trim() || current === legacy ? current : current ? `${current}, ${legacy}` : legacy;
+
+/**
+ * Files before stage 14 kept the user's own traits, goal, occult, death cause, skills and preferences
+ * in separate top-level fields. They move into `catalog`, so nothing is lost and they are not written again.
+ */
+function moveLegacyValues(raw: RecordValue, result: Character) {
+  const text = (key: string) => (raw[key] === undefined ? "" : string(raw[key]));
+  const list = (key: string) => (raw[key] === undefined ? [] : array(raw[key]).map(string));
+  const legacy = {
+    customTraits: list("traits"),
+    customSkills: list("skills"),
+    customPreferences: list("preferences"),
+    customOccults: text("occultType").trim() ? [text("occultType")] : [],
+    customAspiration: text("aspiration"),
+    customDeathCause: text("deathCause"),
+  };
+  if (!Object.values(legacy).some((value) => (Array.isArray(value) ? value.length : value.trim()))) return;
+  const settings = (result.catalog ??= emptyCharacterCatalog());
+  for (const key of ["customTraits", "customSkills", "customPreferences", "customOccults"] as const)
+    settings[key] = mergeLists(settings[key], legacy[key]);
+  for (const key of ["customAspiration", "customDeathCause"] as const)
+    settings[key] = mergeTexts(settings[key], legacy[key]);
+}
+
 function character(value: unknown): Character {
   const raw = record(value);
   const type = oneOf(raw.type, ["sim", "pet", "custom"]);
@@ -77,15 +116,12 @@ function character(value: unknown): Character {
     "species",
     "pronouns",
     "gender",
-    "occultType",
     "birthDate",
     "deathDate",
     "household",
     "world",
     "lot",
-    "aspiration",
     "education",
-    "deathCause",
     "biography",
     "notes",
     "color",
@@ -94,11 +130,12 @@ function character(value: unknown): Character {
   ] as const) {
     if (raw[key] !== undefined) result[key] = string(raw[key]);
   }
-  for (const key of ["aliases", "traits", "preferences", "skills", "tags", "ownerIds"] as const) {
+  for (const key of ["aliases", "tags", "ownerIds"] as const) {
     result[key] = raw[key] === undefined ? [] : array(raw[key]).map(string);
   }
   result.status = oneOf(raw.status, ["alive", "dead", "missing", "unknown"]);
   if (raw.catalog !== undefined) result.catalog = catalog(raw.catalog);
+  moveLegacyValues(raw, result);
   result.generation = finite(raw.generation);
   result.stages = array(raw.stages).map((item) => {
     const stage = record(item);
