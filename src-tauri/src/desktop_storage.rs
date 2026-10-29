@@ -674,7 +674,10 @@ mod tests {
         assert_eq!(photo_list(&storage, &root.path).unwrap(), json!([]));
         let (name, write) = photo_request(&root.path, b"Picture");
         storage.execute(write).unwrap();
-        assert_eq!(fs::read(temp.path().join(PHOTO_FOLDER).join(&name)).unwrap(), b"Picture");
+        assert_eq!(
+            fs::read(temp.path().join(PHOTO_FOLDER).join(&name)).unwrap(),
+            b"Picture"
+        );
         fs::write(temp.path().join(PHOTO_FOLDER).join("notes.txt"), "Keep").unwrap();
         assert_eq!(photo_list(&storage, &root.path).unwrap(), json!([name.clone()]));
         let read = storage
@@ -698,7 +701,10 @@ mod tests {
             })
             .unwrap();
         assert_eq!(missing, Value::Null);
-        assert_eq!(fs::read_to_string(temp.path().join(PHOTO_FOLDER).join("notes.txt")).unwrap(), "Keep");
+        assert_eq!(
+            fs::read_to_string(temp.path().join(PHOTO_FOLDER).join("notes.txt")).unwrap(),
+            "Keep"
+        );
     }
     #[test]
     fn photo_paths_outside_the_dynasty_or_foreign_files_are_rejected() {
@@ -751,7 +757,10 @@ mod tests {
         let (_, blocked) = photo_request(&root.path, b"Picture");
         assert!(storage.execute(blocked).is_err());
         assert!(photo_list(&storage, &root.path).is_err());
-        assert_eq!(fs::read_to_string(temp.path().join(PHOTO_FOLDER)).unwrap(), "Not a folder");
+        assert_eq!(
+            fs::read_to_string(temp.path().join(PHOTO_FOLDER)).unwrap(),
+            "Not a folder"
+        );
     }
     #[test]
     fn backup_before_photos_never_replaces_an_existing_copy() {
