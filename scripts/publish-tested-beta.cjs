@@ -27,6 +27,9 @@ async function main() {
     !/^[a-f0-9]{64}$/.test(manifest.exeSha256)
   )
     throw new Error("Invalid checksums.");
+  // Manifests before beta.2 had no title.
+  const title = manifest.title ?? `TaleBranch ${tag} — Первая бета / First beta`;
+  if (typeof title !== "string" || !title.trim()) throw new Error("Invalid release title.");
   const prefix = `TaleBranch-${version}`;
   const archiveName = `${prefix}-portable.zip`;
   const exeName = `${prefix}-portable.exe`;
@@ -82,7 +85,7 @@ async function main() {
       "--target",
       target,
       "--title",
-      `TaleBranch ${tag} — Первая бета / First beta`,
+      title,
       "--notes-file",
       `docs/releases/${tag}.md`,
       "--draft",
