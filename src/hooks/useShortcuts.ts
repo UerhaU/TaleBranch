@@ -72,7 +72,6 @@ export function useShortcuts({
         if (selectedId) onDeselect();
         return;
       }
-      if (app.loadError) return;
       if (is("n")) {
         event.preventDefault();
         dialogs.open("addCharacter", { type: "sim" });

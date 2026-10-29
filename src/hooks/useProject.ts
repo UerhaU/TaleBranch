@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { produce } from "immer";
 import type { Character, HistoryState, PairLink, ParentLink, Project } from "../types";
-import {
-  deleteStoredProject,
-  listProjects,
-  loadInitialProject,
-  loadProject,
-  saveProject,
-  saveProjectIrreversibly,
-} from "../lib/storage";
 import { createEmptyProject } from "../lib/project";
 import {
   moveCharacterToTrash,
@@ -17,40 +9,24 @@ import {
   restoreTrashedCharacter,
   validPetOwnerIds,
 } from "../lib/relationships";
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { recordStorageFailure, type StorageFailure } from "../lib/storageDiagnostics";
-import {
-  clearLastDynastyFolder,
-  DynastyFolder,
-  FOLDER_ACTIVE_KEY,
-  forgetDynastyFolder,
-  lastDynastyFolder,
-  rememberDynastyFolder,
-} from "../lib/folderStorage";
+import type { Dynasty } from "../lib/dynastyStore";
+import { useDynastyStore } from "./useDynastyStore";
 
 export type SaveStatus = "saved" | "saving" | "error";
 
 export function useProject() {
-  const [initial] = useState(() => {
-    try {
-      const restore = isTauri() || Boolean(localStorage.getItem(FOLDER_ACTIVE_KEY));
-      const project = restore ? null : loadInitialProject();
-      return { project: project ?? createEmptyProject(), hasProject: project !== null, loadError: false, restore };
-    } catch {
-      return { project: createEmptyProject(), hasProject: true, loadError: true, restore: false };
-    }
-  });
-  const [hasProject, setHasProject] = useState(initial.hasProject);
-  const [loadError, setLoadError] = useState(initial.loadError);
-  const [history, setHistory] = useState<HistoryState>(() => ({ past: [], present: initial.project, future: [] }));
+  const store = useDynastyStore();
+  const [hasProject, setHasProject] = useState(false);
+  const [history, setHistory] = useState<HistoryState>(() => ({ past: [], present: createEmptyProject(), future: [] }));
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [saveError, setSaveError] = useState<StorageFailure>();
   const [closeGuardError, setCloseGuardError] = useState(false);
   const saveTimer = useRef<number | undefined>(undefined);
-  const folderRef = useRef<DynastyFolder | undefined>(undefined);
+  const dynastyRef = useRef<Dynasty | undefined>(undefined);
   const [folderName, setFolderName] = useState<string>();
-  const [busy, setBusy] = useState(initial.restore);
+  // The last dynasty is being restored on startup.
+  const [busy, setBusy] = useState(true);
   const [startupError, setStartupError] = useState(false);
   const transitioning = useRef(false);
   const destructive = useRef(false);
@@ -60,52 +36,37 @@ export function useProject() {
   active.current = hasProject;
   const current = useRef(project);
   current.current = project;
-  const blocked = useRef(loadError);
-  blocked.current = loadError;
   const lastSaved = useRef<Project | undefined>(undefined);
+  const dirty = () => Boolean(dynastyRef.current) && lastSaved.current !== current.current;
 
   const forceSave = useCallback((): boolean | Promise<boolean> => {
     if (destructive.current) return false;
-    if (!active.current) return true;
-    if (blocked.current) return false;
     window.clearTimeout(saveTimer.current);
-    const folder = folderRef.current;
-    if (folder) {
-      const snapshot = current.current;
-      if (lastSaved.current === snapshot) return true;
-      setSaveStatus("saving");
-      return folder
-        .save(snapshot)
-        .then(() => {
-          if (folderRef.current !== folder) return true;
-          lastSaved.current = snapshot;
-          setSaveStatus(current.current === snapshot ? "saved" : "saving");
-          setSaveError(undefined);
-          return true;
-        })
-        .catch((error) => {
-          if (folderRef.current === folder) {
-            setSaveError(recordStorageFailure(error, "save"));
-            setSaveStatus("error");
-          }
-          return false;
-        });
-    }
-    try {
-      if (lastSaved.current !== current.current) saveProject(current.current);
-      lastSaved.current = current.current;
-      setSaveStatus("saved");
-      setSaveError(undefined);
-      return true;
-    } catch (error) {
-      setSaveError(recordStorageFailure(error, "save"));
-      setSaveStatus("error");
-      return false;
-    }
+    const dynasty = dynastyRef.current;
+    if (!dynasty) return true;
+    const snapshot = current.current;
+    if (lastSaved.current === snapshot) return true;
+    setSaveStatus("saving");
+    return dynasty
+      .save(snapshot)
+      .then(() => {
+        if (dynastyRef.current !== dynasty) return true;
+        lastSaved.current = snapshot;
+        setSaveStatus(current.current === snapshot ? "saved" : "saving");
+        setSaveError(undefined);
+        return true;
+      })
+      .catch((error) => {
+        if (dynastyRef.current === dynasty) {
+          setSaveError(recordStorageFailure(error, "save"));
+          setSaveStatus("error");
+        }
+        return false;
+      });
   }, []);
 
   useEffect(() => {
-    if (loadError || !hasProject) return;
+    if (!hasProject) return;
     if (lastSaved.current === project) return;
     setSaveStatus("saving");
     window.clearTimeout(saveTimer.current);
@@ -113,19 +74,17 @@ export function useProject() {
       forceSave();
     }, 450);
     return () => window.clearTimeout(saveTimer.current);
-  }, [project, loadError, hasProject, forceSave]);
+  }, [project, hasProject, forceSave]);
 
   useEffect(() => {
     const flush = () => {
-      forceSave();
+      void forceSave();
     };
     const close = (event: BeforeUnloadEvent) => {
-      const dirtyFolder = folderRef.current && lastSaved.current !== current.current;
-      if (!blocked.current && (dirtyFolder || forceSave() === false)) {
-        if (dirtyFolder) void forceSave();
-        event.preventDefault();
-        event.returnValue = "";
-      }
+      if (!dirty()) return;
+      void forceSave();
+      event.preventDefault();
+      event.returnValue = "";
     };
     const hide = () => {
       if (document.visibilityState === "hidden") flush();
@@ -138,56 +97,22 @@ export function useProject() {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", hide);
       window.clearTimeout(saveTimer.current);
-      // Also flush on unmount; switching projects is handled synchronously below.
-      if (active.current && !blocked.current && !destructive.current && lastSaved.current !== current.current) {
-        if (folderRef.current) void folderRef.current.save(current.current).catch(() => {});
-        else
-          try {
-            saveProject(current.current);
-          } catch {
-            /* Keep the previous saved record. */
-          }
-      }
+      // Also flush on unmount; switching dynasties saves before the switch.
+      if (!destructive.current && dirty()) void dynastyRef.current!.save(current.current).catch(() => {});
     };
   }, [forceSave]);
 
-  useEffect(() => {
-    if (!isTauri()) return;
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    // WebView destruction need not dispatch beforeunload. Intercept native close too.
-    let closing = false;
-    void getCurrentWindow()
-      .onCloseRequested((event) => {
-        if (closing || blocked.current) return;
-        const result = forceSave();
-        if (result instanceof Promise) {
-          event.preventDefault();
-          void result.then((ok) => {
-            if (ok && lastSaved.current === current.current) {
-              closing = true;
-              void getCurrentWindow()
-                .close()
-                .catch(() => {
-                  closing = false;
-                  setCloseGuardError(true);
-                });
-            }
-          });
-        } else if (!result) event.preventDefault();
-      })
-      .then((stop) => {
-        if (disposed) stop();
-        else unlisten = stop;
-      })
-      .catch(() => {
-        if (!disposed) setCloseGuardError(true);
-      });
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [forceSave]);
+  useEffect(
+    () =>
+      store.guardClose(
+        () => {
+          const result = forceSave();
+          return result instanceof Promise ? result.then((ok) => ok && !dirty()) : result;
+        },
+        () => setCloseGuardError(true),
+      ),
+    [store, forceSave],
+  );
 
   const commit = useCallback((recipe: (draft: Project) => void) => {
     setHistory((current) => {
@@ -206,100 +131,39 @@ export function useProject() {
     });
   }, []);
 
-  const replace = useCallback(
-    (next: Project): boolean | Promise<boolean> => {
-      if (transitioning.current) return false;
-      const finish = (): boolean => {
-        try {
-          saveProject(next);
-        } catch (error) {
-          setSaveError(recordStorageFailure(error, "switch"));
-          setSaveStatus("error");
-          return false;
-        }
-        lastSaved.current = next;
-        folderRef.current = undefined;
-        setFolderName(undefined);
-        try {
-          localStorage.removeItem(FOLDER_ACTIVE_KEY);
-        } catch {
-          /* Preferences are optional. */
-        }
-        void clearLastDynastyFolder(true).catch(() => {});
-        current.current = next;
-        active.current = true;
-        setHasProject(true);
-        blocked.current = false;
-        setLoadError(false);
-        setSaveStatus("saved");
-        setSaveError(undefined);
-        setHistory({ past: [], present: next, future: [] });
-        return true;
-      };
-      const saved = blocked.current ? true : forceSave();
-      if (saved instanceof Promise) {
-        transitioning.current = true;
-        setBusy(true);
-        return saved
-          .then((ok) => ok && finish())
-          .finally(() => {
-            transitioning.current = false;
-            setBusy(false);
-          });
-      }
-      return saved && finish();
-    },
-    [forceSave],
-  );
-
+  /** Shows another dynasty after the current one has been saved. */
   const openFolder = useCallback(
-    async (folder: DynastyFolder, next: Project, currentAlreadySaved = false): Promise<boolean> => {
+    async (dynasty: Dynasty, next: Project): Promise<boolean> => {
       if (transitioning.current) return false;
       transitioning.current = true;
       setBusy(true);
       try {
-        // A transfer has already written this exact current snapshot to the new
-        // folder. It must also work when the old browser quota is exhausted.
-        if (!(currentAlreadySaved && next === current.current) && !blocked.current && !(await forceSave()))
-          return false;
-        folderRef.current = folder;
-        setFolderName(folder.directory.displayPath ?? folder.directory.name);
+        if (!(await forceSave())) return false;
+        dynastyRef.current = dynasty;
+        setFolderName(dynasty.folderName);
         current.current = next;
         lastSaved.current = next;
         active.current = true;
-        blocked.current = false;
         setHasProject(true);
-        setLoadError(false);
         setSaveStatus("saved");
         setSaveError(undefined);
         setHistory({ past: [], present: next, future: [] });
-        try {
-          localStorage.setItem(FOLDER_ACTIVE_KEY, next.id);
-        } catch {
-          /* No content is stored here. */
-        }
-        await rememberDynastyFolder(folder, next).catch(() => {});
+        await store.remember(dynasty).catch(() => {});
         return true;
       } finally {
         transitioning.current = false;
         setBusy(false);
       }
     },
-    [forceSave],
+    [store, forceSave],
   );
 
   useEffect(() => {
-    if (!initial.restore) return;
     let cancelled = false;
     void (async () => {
       try {
-        const entry = await lastDynastyFolder();
-        if (!entry || cancelled) return;
-        // Startup must never open a permission dialog. Native folders are
-        // authorized by their saved path; browsers may require an explicit click.
-        if ((await entry.directory.queryPermission({ mode: "readwrite" })) !== "granted" || cancelled) return;
-        const { folder, project: saved } = await DynastyFolder.open(entry.directory, entry.parent);
-        if (!cancelled) await openFolder(folder, saved);
+        const last = await store.restoreLast();
+        if (last && !cancelled) await openFolder(last.dynasty, last.project);
       } catch {
         if (!cancelled) setStartupError(true);
       } finally {
@@ -309,7 +173,21 @@ export function useProject() {
     return () => {
       cancelled = true;
     };
-  }, [initial.restore, openFolder]);
+  }, [store, openFolder]);
+
+  const showNothing = useCallback(() => {
+    window.clearTimeout(saveTimer.current);
+    dynastyRef.current = undefined;
+    setFolderName(undefined);
+    active.current = false;
+    setHasProject(false);
+    lastSaved.current = undefined;
+    current.current = createEmptyProject();
+    setSaveStatus("saved");
+    setSaveError(undefined);
+    // Undo/redo and close-time autosave must never resurrect closed or deleted data.
+    setHistory({ past: [], present: current.current, future: [] });
+  }, []);
 
   const closeFolder = useCallback(async (): Promise<boolean> => {
     if (transitioning.current) return false;
@@ -317,14 +195,8 @@ export function useProject() {
     setBusy(true);
     try {
       if (!(await forceSave())) return false;
-      await clearLastDynastyFolder();
-      folderRef.current = undefined;
-      setFolderName(undefined);
-      active.current = false;
-      setHasProject(false);
-      lastSaved.current = undefined;
-      current.current = createEmptyProject();
-      setHistory({ past: [], present: current.current, future: [] });
+      await store.forgetLast();
+      showNothing();
       return true;
     } catch (error) {
       setSaveError(recordStorageFailure(error, "switch"));
@@ -334,88 +206,21 @@ export function useProject() {
       transitioning.current = false;
       setBusy(false);
     }
-  }, [forceSave]);
+  }, [store, forceSave, showNothing]);
 
-  const acceptIrreversibleChange = useCallback((next?: Project) => {
-    window.clearTimeout(saveTimer.current);
-    // Keep a private draft for the hook's shape; it is never saved or editable
-    // until the user explicitly creates or opens a dynasty.
-    const present = next ?? createEmptyProject();
-    active.current = Boolean(next);
-    setHasProject(Boolean(next));
-    current.current = present;
-    lastSaved.current = next;
-    setSaveStatus("saved");
-    setSaveError(undefined);
-    // Undo/redo and close-time autosave must never resurrect deleted data.
-    setHistory({ past: [], present, future: [] });
-  }, []);
-
-  const permanentlyDeleteCharacters = useCallback(
-    (ids: string[]): boolean | Promise<boolean> => {
-      if (transitioning.current) return false;
-      if (blocked.current || !active.current) return false;
-      if (!current.current.trashedCharacters.some((item) => ids.includes(item.id))) return false;
-      const next = produce(current.current, (draft) => {
-        permanentlyDeleteTrashedCharacters(draft, ids);
-        draft.updatedAt = new Date().toISOString();
-      });
-      if (folderRef.current) {
-        transitioning.current = true;
-        destructive.current = true;
-        setBusy(true);
-        window.clearTimeout(saveTimer.current);
-        return folderRef.current
-          .save(next)
-          .then(() => {
-            acceptIrreversibleChange(next);
-            return true;
-          })
-          .catch((error) => {
-            setSaveError(recordStorageFailure(error, "purge"));
-            setSaveStatus("error");
-            return false;
-          })
-          .finally(() => {
-            transitioning.current = false;
-            destructive.current = false;
-            setBusy(false);
-          });
-      }
-      try {
-        saveProjectIrreversibly(next);
-      } catch (error) {
-        setSaveError(recordStorageFailure(error, "purge"));
-        setSaveStatus("error");
-        return false;
-      }
-      acceptIrreversibleChange(next);
-      return true;
-    },
-    [acceptIrreversibleChange],
-  );
-
-  const deleteProject = useCallback((): boolean | Promise<boolean> => {
-    if (transitioning.current) return false;
-    if (blocked.current || !active.current) return false;
-    if (folderRef.current) {
-      const directory = folderRef.current.directory;
+  /** An irreversible write: no autosave may run until it has finished. */
+  const irreversibly = useCallback(
+    (operation: StorageFailure["operation"], run: (dynasty: Dynasty) => Promise<void>): false | Promise<boolean> => {
+      const dynasty = dynastyRef.current;
+      if (transitioning.current || !dynasty) return false;
       transitioning.current = true;
       destructive.current = true;
       setBusy(true);
       window.clearTimeout(saveTimer.current);
-      return folderRef.current
-        .delete()
-        .then(async () => {
-          folderRef.current = undefined;
-          setFolderName(undefined);
-          acceptIrreversibleChange();
-          await clearLastDynastyFolder().catch(() => {});
-          await forgetDynastyFolder(directory).catch(() => {});
-          return true;
-        })
+      return run(dynasty)
+        .then(() => true)
         .catch((error) => {
-          setSaveError(recordStorageFailure(error, "delete"));
+          setSaveError(recordStorageFailure(error, operation));
           setSaveStatus("error");
           return false;
         })
@@ -424,27 +229,38 @@ export function useProject() {
           destructive.current = false;
           setBusy(false);
         });
-    }
-    try {
-      let next: Project | undefined;
-      for (const item of listProjects()) {
-        if (item.id === current.current.id) continue;
-        try {
-          next = loadProject(item.id) ?? undefined;
-        } catch {
-          continue;
-        }
-        if (next) break;
-      }
-      deleteStoredProject(current.current.id, next);
-      acceptIrreversibleChange(next);
-      return true;
-    } catch (error) {
-      setSaveError(recordStorageFailure(error, "delete"));
-      setSaveStatus("error");
-      return false;
-    }
-  }, [acceptIrreversibleChange]);
+    },
+    [],
+  );
+
+  const permanentlyDeleteCharacters = useCallback(
+    (ids: string[]): boolean | Promise<boolean> => {
+      if (!current.current.trashedCharacters.some((item) => ids.includes(item.id))) return false;
+      const next = produce(current.current, (draft) => {
+        permanentlyDeleteTrashedCharacters(draft, ids);
+        draft.updatedAt = new Date().toISOString();
+      });
+      return irreversibly("purge", async (dynasty) => {
+        await dynasty.save(next);
+        current.current = next;
+        lastSaved.current = next;
+        setSaveStatus("saved");
+        setSaveError(undefined);
+        // Undo/redo and close-time autosave must never resurrect deleted data.
+        setHistory({ past: [], present: next, future: [] });
+      });
+    },
+    [irreversibly],
+  );
+
+  const deleteProject = useCallback(
+    (): boolean | Promise<boolean> =>
+      irreversibly("delete", async (dynasty) => {
+        await dynasty.delete();
+        showNothing();
+      }),
+    [irreversibly, showNothing],
+  );
 
   const undo = useCallback(() => {
     setHistory((current) => {
@@ -612,14 +428,12 @@ export function useProject() {
       startupError,
       openFolder,
       closeFolder,
-      loadError,
       closeGuardError,
       saveStatus,
       saveError,
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
       commit,
-      replace,
       undo,
       redo,
       forceSave,
@@ -643,14 +457,12 @@ export function useProject() {
       startupError,
       openFolder,
       closeFolder,
-      loadError,
       closeGuardError,
       saveStatus,
       saveError,
       history.past.length,
       history.future.length,
       commit,
-      replace,
       undo,
       redo,
       forceSave,

@@ -136,7 +136,7 @@ export function TreeCanvas({
 
   return (
     <ReactFlowProvider>
-      <QuickLinkContext.Provider value={app.loadError ? undefined : quick}>
+      <QuickLinkContext.Provider value={quick}>
         <div className="tb-field tb-canvas flow-wrap">
           <ReactFlow
             nodes={localNodes}
@@ -202,7 +202,6 @@ export function TreeCanvas({
           <button
             className="tb-menu-item"
             role="menuitem"
-            disabled={app.loadError}
             onClick={() => {
               setMenu(undefined);
               onAddCharacter(menu.at);
@@ -215,7 +214,7 @@ export function TreeCanvas({
           <button
             className="tb-menu-item"
             role="menuitem"
-            disabled={app.loadError || !project.characters.length}
+            disabled={!project.characters.length}
             onClick={() => {
               setMenu(undefined);
               onAutoLayout();
@@ -245,7 +244,6 @@ export function TreeCanvas({
           <p>{project.characters.length ? t("emptySearchHint") : t("emptyTreeHint")}</p>
           <button
             className="button primary"
-            disabled={app.loadError}
             title={project.characters.length ? undefined : `${t("addCharacter")} (N)`}
             onClick={() => (project.characters.length ? view.resetFilters() : onAddCharacter())}
           >
@@ -263,7 +261,6 @@ export function TreeCanvas({
         view={view}
         dialogs={dialogs}
         total={project.characters.length}
-        loadError={app.loadError}
         showMinimap={showMinimap}
         onShowAll={onShowAll}
         onAutoLayout={onAutoLayout}

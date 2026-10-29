@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { DynastyDirectory, RecentFolder } from "./folderStorage";
+import type { FolderBackend } from "./dynastyStore";
 
 interface DirectoryInfo {
   path: string;
@@ -61,7 +63,7 @@ export class DesktopDirectory implements DynastyDirectory {
       name,
       getFile: async () => {
         const contents = await this.io<FileContents>("read");
-        return new File([contents.text], name, { type: "application/json" });
+        return { text: async () => contents.text, size: contents.text.length } as unknown as File;
       },
       createWritable: async () => {
         const previous = await this.io<FileContents>("read");
@@ -85,30 +87,73 @@ export class DesktopDirectory implements DynastyDirectory {
   }
 }
 
-export async function pickDesktopDirectory(): Promise<DesktopDirectory> {
-  const info = await native<DirectoryInfo | null>("desktop_pick_directory");
-  if (!info) throw new DOMException("Cancelled", "AbortError");
-  return new DesktopDirectory(info);
-}
-export async function recentDesktopFolders(): Promise<RecentFolder[]> {
-  const recent = await native<Array<{ id: string; name: string; directory: DirectoryInfo }>>("desktop_recent_folders");
-  return recent.map((item) => ({ ...item, directory: new DesktopDirectory(item.directory) }));
-}
-export async function lastDesktopFolder(): Promise<RecentFolder | undefined> {
-  const entry = await native<{ id: string; name: string; directory: DirectoryInfo } | null>("desktop_last_folder");
-  return entry ? { ...entry, directory: new DesktopDirectory(entry.directory) } : undefined;
-}
-export async function clearLastDesktopFolder(): Promise<void> {
-  await native("desktop_clear_last_folder");
-}
-export async function rememberDesktopFolder(directory: DynastyDirectory, name: string): Promise<void> {
+type NativeRecent = { id: string; name: string; directory: DirectoryInfo };
+const recentFolder = (item: NativeRecent): RecentFolder => ({
+  ...item,
+  directory: new DesktopDirectory(item.directory),
+});
+function nativePath(directory: DynastyDirectory) {
   if (!(directory instanceof DesktopDirectory)) throw new Error("INVALID_DESKTOP_DIRECTORY");
-  await native("desktop_remember_folder", { directory: directory.displayPath, name });
+  return directory.displayPath;
 }
-export async function forgetDesktopFolder(directory: DynastyDirectory): Promise<void> {
-  if (!(directory instanceof DesktopDirectory)) throw new Error("INVALID_DESKTOP_DIRECTORY");
-  await native("desktop_forget_folder", { directory: directory.displayPath });
-}
-export async function saveDesktopExport(name: string, contents: string, png = false): Promise<boolean> {
-  return native("desktop_save_export", { name, contents, png });
-}
+
+/** Dynasty folders through the Rust commands; settings stay in TaleBranch-data beside the .exe. */
+export const desktopBackend: FolderBackend = {
+  kind: "desktop",
+  supported: true,
+  async pick() {
+    const info = await native<DirectoryInfo | null>("desktop_pick_directory");
+    if (!info) throw new DOMException("Cancelled", "AbortError");
+    return new DesktopDirectory(info);
+  },
+  recent: async () => (await native<NativeRecent[]>("desktop_recent_folders")).map(recentFolder),
+  async last() {
+    const entry = await native<NativeRecent | null>("desktop_last_folder");
+    return entry ? recentFolder(entry) : undefined;
+  },
+  async remember(folder, name) {
+    await native("desktop_remember_folder", { directory: nativePath(folder.directory), name });
+  },
+  async clearLast() {
+    await native("desktop_clear_last_folder");
+  },
+  async forget(directory) {
+    await native("desktop_forget_folder", { directory: nativePath(directory) });
+  },
+  saveFile: (name, contents, png) => native("desktop_save_export", { name, contents, png }),
+  // WebView destruction need not dispatch beforeunload. Intercept the native close too.
+  guardClose(flush, onGuardFailure) {
+    let disposed = false;
+    let closing = false;
+    let unlisten: (() => void) | undefined;
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (closing) return;
+        const result = flush();
+        if (result instanceof Promise) {
+          event.preventDefault();
+          void result.then((ok) => {
+            if (!ok) return;
+            closing = true;
+            void getCurrentWindow()
+              .close()
+              .catch(() => {
+                closing = false;
+                onGuardFailure();
+              });
+          });
+        } else if (!result) event.preventDefault();
+      })
+      .then((stop) => {
+        if (disposed) stop();
+        else unlisten = stop;
+      })
+      .catch(() => {
+        if (!disposed) onGuardFailure();
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  },
+};

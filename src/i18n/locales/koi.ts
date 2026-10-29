@@ -51,6 +51,13 @@ export const koiExtra: Record<string, string> = {
   breed: "Порода",
   browserDynasties: "Одзжык тайӧ браузерын видзӧм династияэз",
   browserStorage: "Браузерлӧн видзанін",
+  transferDynasty: "Вуджӧдны папкаӧ",
+  transferFolderHint:
+    "Бӧрйӧ видзан места. Программа лӧсьӧтас сэтӧн династия нима папка да водзӧ видзас вежсьӧммез сэтчӧ. Браузерын гижӧдыс кольӧ, кытчӧдз тэ сійӧс он бырӧд.",
+  deleteBrowserRecord: "Бырӧдны браузерысь",
+  deleteBrowserRecordTitle: "Бырӧдны «{name}» гижӧд браузерысь?",
+  deleteBrowserRecordHint:
+    "«{name}» династия гижӧдыс бырӧтчас браузерлӧн видзанінысь. Дискын династия папкаэз оз вежсьӧ. Тайӧ действие оз позь дугӧдны.",
   canUndoAction: "Тайӧ действие позьӧ дугӧдны.",
   catalogCategory: "Категория",
   catalogCount: "Адззӧм: {count}",

@@ -80,7 +80,6 @@ export function Topbar({
             <span className="tb-add-split">
               <button
                 className="tb-add-main add-person"
-                disabled={app.loadError}
                 title={`${t("addCharacter")} (N)`}
                 onClick={() => dialogs.open("addCharacter", { type: "sim" })}
               >
@@ -89,7 +88,6 @@ export function Topbar({
               </button>
               <button
                 className="tb-add-more"
-                disabled={app.loadError}
                 title={t("addOptions")}
                 aria-label={t("addOptions")}
                 aria-haspopup="menu"

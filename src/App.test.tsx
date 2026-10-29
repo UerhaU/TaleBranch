@@ -6,11 +6,14 @@ import App from "./App";
 import { LanguageProvider } from "./i18n";
 import { createDemoProject, createEmptyProject } from "./lib/project";
 import { moveCharacterToTrash } from "./lib/relationships";
-import { listProjects, loadInitialProject, loadProject, saveProject } from "./lib/storage";
 import type { Project } from "./types";
 import type { Edge } from "@xyflow/react";
 import { webcrypto } from "node:crypto";
-import { DynastyFolder, DYNASTY_FILE, FOLDER_ACTIVE_KEY } from "./lib/folderStorage";
+import { DynastyFolder, DYNASTY_FILE } from "./lib/folderStorage";
+import { DynastyStoreContext } from "./hooks/useDynastyStore";
+import { browserTestStore, memoryBookmarks, storeLegacyProject } from "./lib/dynastyStore.testSupport";
+import { listLegacyProjects, loadLegacyProject } from "./lib/legacyStorage";
+import type { DynastyStore } from "./lib/dynastyStore";
 import { MemoryDirectory } from "./lib/folderStorage.testSupport";
 
 const graph = vi.hoisted(() => ({ edges: [] as Edge[] }));
@@ -27,9 +30,18 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
   Controls: () => null,
 }));
 
+// Written by the browser variant when a dynasty folder becomes the last open one.
+const FOLDER_ACTIVE_KEY = "dynasty-chronicles:last-folder-bookmark";
 let root: Root, container: HTMLDivElement;
+let bookmarks: ReturnType<typeof memoryBookmarks>;
+let store: DynastyStore;
+/** The save location of the dynasty opened by mount(). */
+let home: MemoryDirectory;
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.stubGlobal("crypto", webcrypto);
+  bookmarks = memoryBookmarks();
+  store = browserTestStore(bookmarks);
   localStorage.clear();
   sessionStorage.clear();
   localStorage.setItem("dynasty-chronicles:language", "ru");
@@ -46,20 +58,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount(trashedIds: string[] = [], configure?: (project: Project) => void) {
+/** Waits until the check passes, applying React updates between attempts. */
+const settle = (check: () => void) =>
+  vi.waitFor(async () => {
+    await act(async () => {});
+    check();
+  });
+/** Starts the application, which restores the last open dynasty folder if there is one. */
+async function show(strict = false) {
+  const app = (
+    <DynastyStoreContext.Provider value={store}>
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
+    </DynastyStoreContext.Provider>
+  );
+  act(() => root.render(strict ? <StrictMode>{app}</StrictMode> : app));
+  await act(async () => {});
+}
+async function restart() {
+  act(() => root.unmount());
+  root = createRoot(container);
+  store = browserTestStore(bookmarks);
+  await show();
+}
+/** Opens a demo dynasty that was left open in its folder on the previous run. */
+async function mount(trashedIds: string[] = [], configure?: (project: Project) => void) {
   const project = createDemoProject();
   configure?.(project);
   for (const id of trashedIds) moveCharacterToTrash(project, id);
-  saveProject(project);
-  act(() =>
-    root.render(
-      <LanguageProvider>
-        <App />
-      </LanguageProvider>,
-    ),
-  );
+  home = new MemoryDirectory();
+  home.name = "Династии";
+  await store.remember(await store.create(home, project));
+  await show();
+  await settle(() => expect(container.querySelector(".project-switcher")).not.toBeNull());
   return project;
 }
+const folder = () => home.directories.get(createDemoProject().name)!;
+const saved = (): Project => JSON.parse(folder().files.get(DYNASTY_FILE)!).project;
 function click(text: string, scope: ParentNode = container) {
   const found = Array.from(scope.querySelectorAll<HTMLButtonElement>("button")).find(
     (item) =>
@@ -70,27 +106,28 @@ function click(text: string, scope: ParentNode = container) {
   if (!found) throw Error(`Missing button: ${text}`);
   act(() => found.click());
 }
+function clickItem(name: string) {
+  // Old browser records come after the recent folders, which may have the same name.
+  const found = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+    .filter((item) => item.querySelector("strong, .tb-recent-name")?.textContent === name)
+    .at(-1);
+  if (!found) throw Error(`Missing item: ${name}`);
+  act(() => found.click());
+}
 const dialog = () => Array.from(container.querySelectorAll<HTMLElement>('[role="dialog"]')).at(-1)!;
 
 describe("dynasty and trash deletion in the interface", () => {
-  it("starts on the welcome screen without automatically opening a creation dialog", () => {
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+  it("starts on the welcome screen without automatically opening a creation dialog", async () => {
+    await show();
     expect(container.querySelector(".dynasty-welcome")).not.toBeNull();
     expect(dialog()).toBeUndefined();
     act(() => vi.advanceTimersByTime(1000));
     expect(dialog()).toBeUndefined();
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
     click("Новая династия");
     expect(dialog().getAttribute("aria-label")).toBe("Новая династия");
   });
   it("warns about deleting the whole folder and returns to the welcome screen after confirmation", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory();
     await DynastyFolder.create(directory, createDemoProject());
     directory.files.set("notes.txt", "Inside dynasty");
@@ -98,13 +135,7 @@ describe("dynasty and trash deletion in the interface", () => {
       "showDirectoryPicker",
       vi.fn(async () => directory),
     );
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     await act(async () => {
       click("Открыть папку династии");
       await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy());
@@ -122,8 +153,8 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(dialog()).toBeUndefined();
     expect(directory.files.size).toBe(0);
   });
-  it("renders translucent personal connections with all relationship labels and direction", () => {
-    mount([], (project) => {
+  it("renders translucent personal connections with all relationship labels and direction", async () => {
+    await mount([], (project) => {
       const labels = project.pairLinks[1].labels;
       labels[0].name = "Любовники";
       labels[0].direction = "a-to-b";
@@ -139,8 +170,8 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(graph.edges.filter((item) => item.className === "family-edge")).toHaveLength(4);
   });
 
-  it("toggles personal connections separately and excludes connections to characters in trash", () => {
-    mount(["char_elena"]);
+  it("toggles personal connections separately and excludes connections to characters in trash", async () => {
+    await mount(["char_elena"]);
     expect(graph.edges.filter((item) => item.type === "relationship")).toHaveLength(1);
     click("Вид");
     const label = Array.from(container.querySelectorAll(".tb-view-menu label")).find(
@@ -151,120 +182,113 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(graph.edges.filter((item) => item.className === "family-edge")).toHaveLength(3);
   });
 
-  it("explains quota failures and allows retrying while keeping current data", () => {
-    const project = mount();
-    const original = Storage.prototype.setItem;
-    const failure = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
-      if (this === localStorage) throw new DOMException("Storage quota exceeded", "QuotaExceededError");
-      original.call(this, key, value);
+  it("explains a folder write failure and allows retrying while keeping current data", async () => {
+    await mount();
+    folder().failWrite = true;
+    click("Настройки");
+    click("Династия", dialog());
+    const input = dialog().querySelector<HTMLInputElement>("input")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Не потерять");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    click("Сохранить", dialog());
     act(() => window.dispatchEvent(new KeyboardEvent("keydown", { ctrlKey: true, key: "s" })));
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Хранилище браузера заполнено");
+    await settle(() =>
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain("Не удалось записать изменения"),
+    );
     expect(container.querySelector(".storage-error-details")?.textContent).toContain("QuotaExceededError");
-    failure.mockRestore();
+    folder().failWrite = false;
     click("Повторить сохранение");
+    await settle(() => expect(saved().name).toBe("Не потерять"));
     expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(loadProject(project.id)?.characters).toHaveLength(6);
   });
-  it("requires confirmation to purge one profile and keeps restoration available after cancellation", () => {
-    const project = mount(["char_vera"]);
+  it("requires confirmation to purge one profile and keeps restoration available after cancellation", async () => {
+    const project = await mount(["char_vera"]);
     expect(container.querySelector(".project-switcher > button")?.getAttribute("aria-label")).toBe(
       `Династия: ${project.name}`,
     );
     click("Корзина");
     click("Удалить «Вера Воронова» безвозвратно?");
     expect(dialog().textContent).toContain("Это действие нельзя отменить");
-    expect(loadProject(project.id)?.trashedCharacters).toHaveLength(1);
+    expect(saved().trashedCharacters).toHaveLength(1);
     click("Отмена", dialog());
     expect(dialog().querySelector(".trash-list")?.textContent).toContain("Вера Воронова");
     click("Восстановить", dialog());
     act(() => window.dispatchEvent(new Event("pagehide")));
-    expect(loadProject(project.id)?.characters.some((item) => item.id === "char_vera")).toBe(true);
+    await settle(() => expect(saved().characters.some((item) => item.id === "char_vera")).toBe(true));
   });
 
-  it("permanently removes a selected trash profile only after confirmation", () => {
-    const project = mount(["char_vera", "char_elena"]);
+  it("permanently removes a selected trash profile only after confirmation", async () => {
+    await mount(["char_vera", "char_elena"]);
     click("Корзина");
     click("Удалить «Вера Воронова» безвозвратно?");
     click("Удалить безвозвратно", dialog());
-    expect(loadProject(project.id)?.trashedCharacters.map((item) => item.id)).toEqual(["char_elena"]);
+    await settle(() => expect(saved().trashedCharacters.map((item) => item.id)).toEqual(["char_elena"]));
     expect(dialog().getAttribute("aria-label")).toBe("Корзина династии");
     expect(dialog().querySelector(".trash-list")?.textContent).not.toContain("Вера Воронова");
     expect(container.querySelector<HTMLButtonElement>('button[title="Отменить (Ctrl+Z)"]')?.disabled).toBe(true);
   });
 
-  it("confirms emptying the trash without removing active profiles", () => {
-    const project = mount(["char_vera", "char_elena"]);
+  it("confirms emptying the trash without removing active profiles", async () => {
+    await mount(["char_vera", "char_elena"]);
     click("Корзина");
     click("Очистить корзину");
     expect(dialog().textContent).toContain("(2)");
     click("Удалить безвозвратно", dialog());
-    expect(loadProject(project.id)?.trashedCharacters).toEqual([]);
-    expect(loadProject(project.id)?.characters).toHaveLength(4);
+    await settle(() => expect(saved().trashedCharacters).toEqual([]));
+    expect(saved().characters).toHaveLength(4);
     expect(dialog().querySelector(".empty-modal")).not.toBeNull();
   });
 
-  it("keeps a failed purge open with an error and allows retrying", () => {
-    const project = mount(["char_vera"]);
+  it("keeps a failed purge open with an error and allows retrying", async () => {
+    await mount(["char_vera"]);
     click("Корзина");
     click("Удалить «Вера Воронова» безвозвратно?");
-    const setItem = Storage.prototype.setItem;
-    const failure = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
-      if (key === "dynasty-chronicles:index") throw Error("Write failed");
-      setItem.call(this, key, value);
-    });
+    folder().failWrite = true;
     click("Удалить безвозвратно", dialog());
-    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain("Не удалось завершить удаление");
-    expect(loadProject(project.id)?.trashedCharacters).toHaveLength(1);
-    failure.mockRestore();
+    await settle(() =>
+      expect(dialog().querySelector('[role="alert"]')?.textContent).toContain("Не удалось завершить удаление"),
+    );
+    expect(saved().trashedCharacters).toHaveLength(1);
+    folder().failWrite = false;
     click("Удалить безвозвратно", dialog());
-    expect(loadProject(project.id)?.trashedCharacters).toEqual([]);
+    await settle(() => expect(saved().trashedCharacters).toEqual([]));
   });
 
   it("shows the welcome screen after deletion and restart until creation is explicitly requested", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory();
     const picker = vi.fn(async () => directory);
     vi.stubGlobal("showDirectoryPicker", picker);
-    const project = mount();
+    const project = await mount();
     click("Настройки");
     click("Династия", dialog());
     click("Удалить династию", dialog());
     expect(dialog().textContent).toContain(project.name);
     click("Отмена", dialog());
-    expect(loadProject(project.id)).not.toBeNull();
+    expect(home.directories.has(project.name)).toBe(true);
     expect(dialog().getAttribute("aria-label")).toBe("Настройки");
     click("Удалить династию", dialog());
     click("Удалить безвозвратно", dialog());
-    expect(loadProject(project.id)).toBeNull();
-    expect(loadInitialProject()).toBeNull();
-    expect(listProjects()).toEqual([]);
-    expect(dialog()).toBeUndefined();
+    await settle(() => expect(home.directories.has(project.name)).toBe(false));
+    await settle(() => expect(dialog()).toBeUndefined());
     act(() => {
       vi.advanceTimersByTime(1000);
       window.dispatchEvent(new Event("pagehide"));
     });
     expect(container.querySelector(".dynasty-welcome")?.textContent).toContain("Создайте свою династию");
-    expect(listProjects()).toEqual([]);
-    act(() => root.unmount());
-    root = createRoot(container);
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    expect(home.directories.has(project.name)).toBe(false);
+    await restart();
+    expect(container.querySelector(".dynasty-welcome")).not.toBeNull();
     expect(dialog()).toBeUndefined();
     click("Новая династия");
     expect(dialog().getAttribute("aria-label")).toBe("Новая династия");
-    expect(loadInitialProject()).toBeNull();
     const name = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "  Дом Соколовых  ");
       name.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
     expect(
       Array.from(dialog().querySelectorAll<HTMLButtonElement>("button")).find(
         (button) => button.textContent?.trim() === "Создать",
@@ -277,7 +301,7 @@ describe("dynasty and trash deletion in the interface", () => {
     });
     expect(picker).toHaveBeenCalledTimes(1);
     expect(container.querySelector(".folder-error")?.textContent).toBeUndefined();
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
     expect((await DynastyFolder.open(await directory.getDirectoryHandle("Дом Соколовых"))).project.name).toBe(
       "Дом Соколовых",
     );
@@ -286,20 +310,13 @@ describe("dynasty and trash deletion in the interface", () => {
   });
 
   it("can import a saved dynasty from the welcome screen without creating a blank one", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory();
     vi.stubGlobal(
       "showDirectoryPicker",
       vi.fn(async () => directory),
     );
     const imported = createDemoProject();
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     await act(async () => {
       Object.defineProperty(fileInput, "files", {
@@ -309,7 +326,7 @@ describe("dynasty and trash deletion in the interface", () => {
       });
       fileInput.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(listProjects()).toHaveLength(0);
+    expect(listLegacyProjects()).toHaveLength(0);
     expect(directory.files.size).toBe(0);
     await act(async () => click("Выбрать место сохранения", dialog()));
     await act(async () => {
@@ -317,14 +334,13 @@ describe("dynasty and trash deletion in the interface", () => {
       await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy());
     });
     expect(container.querySelector(".folder-error")?.textContent).toBeUndefined();
-    expect(listProjects()).toHaveLength(0);
+    expect(listLegacyProjects()).toHaveLength(0);
     const saved = (await DynastyFolder.open(await directory.getDirectoryHandle(imported.name))).project;
     expect(saved).toEqual(imported);
     expect(container.querySelector(".dynasty-welcome")).toBeNull();
   });
 
   it("opens an existing folder in place and saves edits back to the same file", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory();
     const project = createDemoProject();
     await DynastyFolder.create(directory, project);
@@ -332,20 +348,14 @@ describe("dynasty and trash deletion in the interface", () => {
       "showDirectoryPicker",
       vi.fn(async () => directory),
     );
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     await act(async () => {
       click("Открыть папку династии");
       await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy());
     });
     expect(container.querySelector(".folder-error")?.textContent).toBeUndefined();
     expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name);
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
     click("Настройки");
     click("Династия", dialog());
     const input = dialog().querySelector<HTMLInputElement>("input")!;
@@ -362,7 +372,7 @@ describe("dynasty and trash deletion in the interface", () => {
     });
     expect((await DynastyFolder.open(directory)).project.name).toBe("Новое название");
     expect([...directory.files.keys()]).toEqual([DYNASTY_FILE]);
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
   });
 
   it("cancels folder selection without creating a dynasty or falling back to browser storage", async () => {
@@ -372,13 +382,7 @@ describe("dynasty and trash deletion in the interface", () => {
         throw new DOMException("Cancelled", "AbortError");
       }),
     );
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     click("Новая династия");
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
@@ -386,12 +390,11 @@ describe("dynasty and trash deletion in the interface", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => click("Выбрать место сохранения", dialog()));
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
     expect(dialog()).toBeDefined();
     expect(container.querySelector(".folder-error")).toBeNull();
   });
   it("selects a folder first, then accepts a typed name and creates without opening the picker again", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const queryPermission = vi.spyOn(MemoryDirectory.prototype, "queryPermission");
     const requestPermission = vi.spyOn(MemoryDirectory.prototype, "requestPermission");
     const directory = new MemoryDirectory();
@@ -404,15 +407,7 @@ describe("dynasty and trash deletion in the interface", () => {
         }),
     );
     vi.stubGlobal("showDirectoryPicker", picker);
-    act(() =>
-      root.render(
-        <StrictMode>
-          <LanguageProvider>
-            <App />
-          </LanguageProvider>
-        </StrictMode>,
-      ),
-    );
+    await show(true);
     expect(dialog()).toBeUndefined();
     click("Новая династия");
     click("Выбрать место сохранения", dialog());
@@ -447,22 +442,15 @@ describe("dynasty and trash deletion in the interface", () => {
       "Дом Вороновых",
     );
     expect(container.querySelector('[role="dialog"]')).toBeNull();
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
   });
   it("creates inside a nonempty save location even if its root handle has no display name", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory();
     directory.name = "";
     directory.files.set("Мои документы.txt", "Не трогать");
     const picker = vi.fn(async () => directory);
     vi.stubGlobal("showDirectoryPicker", picker);
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     click("Новая династия");
     await act(async () => click("Выбрать место сохранения", dialog()));
     const input = dialog().querySelector<HTMLInputElement>("input")!;
@@ -484,16 +472,10 @@ describe("dynasty and trash deletion in the interface", () => {
     expect(directory.files.has(DYNASTY_FILE)).toBe(false);
     expect(picker).toHaveBeenCalledTimes(1);
   });
-  it("does not launch a directory picker from Create or Enter while no folder is selected", () => {
+  it("does not launch a directory picker from Create or Enter while no folder is selected", async () => {
     const picker = vi.fn();
     vi.stubGlobal("showDirectoryPicker", picker);
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     click("Новая династия");
     const input = dialog().querySelector<HTMLInputElement>("input")!;
     act(() => {
@@ -503,24 +485,17 @@ describe("dynasty and trash deletion in the interface", () => {
     click("Создать", dialog());
     act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(picker).not.toHaveBeenCalled();
-    expect(listProjects()).toEqual([]);
+    expect(listLegacyProjects()).toEqual([]);
     expect(container.querySelector(".folder-error")?.textContent).toContain("Выбрать место сохранения");
   });
   it("keeps a selected folder after cancelling a replacement selection", async () => {
-    vi.stubGlobal("crypto", webcrypto);
     const directory = new MemoryDirectory();
     const picker = vi
       .fn()
       .mockResolvedValueOnce(directory)
       .mockRejectedValueOnce(new DOMException("Cancelled", "AbortError"));
     vi.stubGlobal("showDirectoryPicker", picker);
-    act(() =>
-      root.render(
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>,
-      ),
-    );
+    await show();
     click("Новая династия");
     await act(async () => click("Выбрать место сохранения", dialog()));
     await act(async () => click(directory.name, dialog()));
@@ -539,48 +514,85 @@ describe("dynasty and trash deletion in the interface", () => {
       "Сохранить выбор",
     );
   });
-  it("saves a browser dynasty into a newly selected folder and keeps the old browser record intact", async () => {
-    vi.stubGlobal("crypto", webcrypto);
-    const cancelledDirectory = new MemoryDirectory();
+  it("moves an old browser record into a chosen folder and keeps the record until it is deleted", async () => {
+    const old = createDemoProject();
+    old.name = "Из старой версии";
+    storeLegacyProject(old);
+    const before = localStorage.getItem(`dynasty-chronicles:project:${old.id}`);
     const destination = new MemoryDirectory();
-    const picker = vi.fn().mockResolvedValueOnce(cancelledDirectory).mockResolvedValueOnce(destination);
+    const picker = vi.fn(async () => destination);
     vi.stubGlobal("showDirectoryPicker", picker);
-    const project = mount();
-    const old = loadProject(project.id);
-    act(() => container.querySelector<HTMLButtonElement>(".project-switcher > button")!.click());
-    click("Новая династия");
+    await show();
+    // The old record is not opened for editing: it starts the transfer.
+    clickItem("Из старой версии");
+    expect(dialog().getAttribute("aria-label")).toBe("Сохранить в выбранную папку");
+    expect(container.querySelector(".project-switcher")).toBeNull();
     await act(async () => click("Выбрать место сохранения", dialog()));
-    click("Отмена", dialog());
-    // A previously chosen, cancelled folder must never become the transfer target.
-    if (!container.querySelector(".project-menu"))
-      act(() => container.querySelector<HTMLButtonElement>(".project-switcher > button")!.click());
     await act(async () => {
-      click("Сохранить в выбранную папку");
+      click("Перенести в папку", dialog());
       await vi.waitFor(() => expect(localStorage.getItem(FOLDER_ACTIVE_KEY)).toBeTruthy());
     });
-    expect(picker).toHaveBeenCalledTimes(2);
-    expect(cancelledDirectory.files.size).toBe(0);
-    expect((await DynastyFolder.open(await destination.getDirectoryHandle(project.name))).project).toEqual(project);
-    expect(loadProject(project.id)).toEqual(old);
-    expect(container.querySelector(".save-state")?.getAttribute("title")).toContain(project.name);
+    await settle(() => expect(container.querySelector(".project-switcher strong")?.textContent).toBe(old.name));
+    const moved = (await DynastyFolder.open(await destination.getDirectoryHandle(old.name))).project;
+    expect(moved).toEqual(loadLegacyProject(old.id));
+    expect(localStorage.getItem(`dynasty-chronicles:project:${old.id}`)).toBe(before);
+    // Deleting the record needs a separate confirmation and leaves the folder alone.
+    act(() => container.querySelector<HTMLButtonElement>(".project-switcher > button")!.click());
+    clickItem("Из старой версии");
+    click("Удалить из браузера", dialog());
+    expect(dialog().textContent).toContain("Папки династий на диске не изменятся");
+    click("Отмена", dialog());
+    expect(listLegacyProjects()).toHaveLength(1);
+    click("Удалить из браузера", dialog());
+    click("Удалить безвозвратно", dialog());
+    expect(listLegacyProjects()).toEqual([]);
+    expect(destination.directories.get(old.name)?.files.has(DYNASTY_FILE)).toBe(true);
+    expect(container.querySelector(".project-switcher strong")?.textContent).toBe(old.name);
   });
 
-  it("offers dynasty deletion from the switcher and opens another saved dynasty", () => {
-    const other = createEmptyProject("Дом Соловьёвых");
-    saveProject(other);
-    const project = mount();
+  it("offers dynasty deletion from the switcher and returns to the welcome screen", async () => {
+    const project = await mount();
     act(() => container.querySelector<HTMLButtonElement>(".project-switcher > button")!.click());
     click("Удалить династию");
     click("Удалить безвозвратно", dialog());
-    expect(loadProject(project.id)).toBeNull();
-    expect(listProjects().map((item) => item.id)).toEqual([other.id]);
-    expect(container.querySelector(".project-switcher strong")?.textContent).toBe(other.name);
+    await settle(() => expect(container.querySelector(".dynasty-welcome")).not.toBeNull());
+    expect(home.directories.has(project.name)).toBe(false);
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("closes a dynasty, keeps its folder and reopens it from the recent list", async () => {
+    const project = await mount();
+    act(() => container.querySelector<HTMLButtonElement>(".project-switcher > button")!.click());
+    click("Закрыть династию");
+    await settle(() => expect(container.querySelector(".dynasty-welcome")).not.toBeNull());
+    expect(saved()).toEqual(project);
+    await restart();
+    expect(container.querySelector(".project-switcher")).toBeNull();
+    await settle(() => expect(container.querySelector(".tb-recent")).not.toBeNull());
+    clickItem(project.name);
+    await settle(() => expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name));
   });
 });
 
 describe("character panel, menus and keys", () => {
   const panel = () => container.querySelector<HTMLElement>(".tb-inspector")!;
+  /** Like mount(), but the folder is opened with «Открыть папку династии». */
+  const mount = async (_trashed: string[] = [], configure?: (project: Project) => void) => {
+    const project = createDemoProject();
+    configure?.(project);
+    // Opening selects the first character.
+    project.characters.sort((a, b) => Number(b.id === "char_vera") - Number(a.id === "char_vera"));
+    home = new MemoryDirectory();
+    await store.create(home, project);
+    vi.stubGlobal(
+      "showDirectoryPicker",
+      vi.fn(async () => home.directories.get(project.name)),
+    );
+    await show();
+    click("Открыть папку династии");
+    await settle(() => expect(panel()).not.toBeNull());
+    return project;
+  };
   const type = (input: HTMLInputElement, value: string) =>
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
@@ -591,8 +603,8 @@ describe("character panel, menus and keys", () => {
       target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
     });
 
-  it("edits the selected character in the same panel without a separate window", () => {
-    mount();
+  it("edits the selected character in the same panel without a separate window", async () => {
+    await mount();
     expect(panel().querySelector("h2")?.textContent).toBe("Вера Воронова");
     click("Изменить", panel());
     expect(panel().classList.contains("is-editing")).toBe(true);
@@ -603,8 +615,8 @@ describe("character panel, menus and keys", () => {
     expect(panel().querySelector("h2")?.textContent).toBe("Новое имя");
   });
 
-  it("hides empty sections instead of showing «not filled» labels", () => {
-    mount([], (project) => {
+  it("hides empty sections instead of showing «not filled» labels", async () => {
+    await mount([], (project) => {
       const first = project.characters.find((item) => item.id === "char_vera")!;
       Object.assign(first, { biography: "", notes: "", aliases: [], pronouns: "", education: "" });
     });
@@ -613,8 +625,8 @@ describe("character panel, menus and keys", () => {
     expect(panel().textContent).not.toContain("История");
   });
 
-  it("adds a child from the «⋯» menu already linked to the parent", () => {
-    const project = mount();
+  it("adds a child from the «⋯» menu already linked to the parent", async () => {
+    const project = await mount();
     const parent = project.characters.find((item) => item.id === "char_vera")!;
     click("Ещё действия", panel());
     click("Добавить ребёнка");
@@ -622,14 +634,14 @@ describe("character panel, menus and keys", () => {
     type(panel().querySelector<HTMLInputElement>("input")!, "Малыш");
     click("Добавить на древо", panel());
     act(() => vi.advanceTimersByTime(2000));
-    const saved = loadProject(project.id)!;
-    const child = saved.characters.find((item) => item.displayName === "Малыш")!;
-    expect(saved.parentLinks.some((link) => link.parentId === parent.id && link.childId === child.id)).toBe(true);
+    await settle(() => expect(saved().characters.some((item) => item.displayName === "Малыш")).toBe(true));
+    const child = saved().characters.find((item) => item.displayName === "Малыш")!;
+    expect(saved().parentLinks.some((link) => link.parentId === parent.id && link.childId === child.id)).toBe(true);
     expect(panel().querySelector("h2")?.textContent).toBe("Малыш");
   });
 
-  it("opens the editor with N, the delete confirmation with Delete and closes the panel with Escape", () => {
-    mount();
+  it("opens the editor with N, the delete confirmation with Delete and closes the panel with Escape", async () => {
+    await mount();
     press({ key: "Delete" });
     expect(dialog().getAttribute("aria-label")).toBe("Удалить «Вера Воронова»?");
     click("Отмена", dialog());

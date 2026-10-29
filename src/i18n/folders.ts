@@ -18,6 +18,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "Не удалось записать изменения в папку династии. Не закрывайте окно. Проверьте доступ к папке и свободное место, затем повторите сохранение или экспортируйте текущую версию.",
     browserDynasties: "Ранее сохранённые в браузере",
     browserStorage: "Хранилище браузера",
+    transferDynasty: "Перенести в папку",
+    transferFolderHint:
+      "Выберите место сохранения. Приложение создаст в нём папку с названием династии и дальше будет сохранять изменения туда. Запись в браузере останется, пока вы её не удалите.",
+    deleteBrowserRecord: "Удалить из браузера",
+    deleteBrowserRecordTitle: "Удалить запись «{name}» из браузера?",
+    deleteBrowserRecordHint:
+      "Запись династии «{name}» будет удалена из памяти браузера. Папки династий на диске не изменятся. Это действие нельзя отменить.",
     importFolderHint:
       "Выберите место сохранения. Приложение создаст в нём отдельную папку с названием импортированной династии и будет сохранять изменения туда.",
     deleteFolderDynastyHint:
@@ -42,6 +49,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "Could not save to the dynasty folder. Keep this window open. Check folder access and free space, then retry or export your current version.",
     browserDynasties: "Previously saved in this browser",
     browserStorage: "Browser storage",
+    transferDynasty: "Move to folder",
+    transferFolderHint:
+      "Choose a save location. The app will create a folder named after the dynasty there and save further changes to it. The browser record stays until you delete it.",
+    deleteBrowserRecord: "Delete from browser",
+    deleteBrowserRecordTitle: "Delete the record “{name}” from the browser?",
+    deleteBrowserRecordHint:
+      "The dynasty record “{name}” will be removed from browser storage. Dynasty folders on disk are not changed. This cannot be undone.",
     importFolderHint:
       "Choose a save location. The app will create a separate folder named after the imported dynasty and save future changes there.",
     deleteFolderDynastyHint:
@@ -68,6 +82,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "Speichern im Dynastieordner fehlgeschlagen. Lass das Fenster offen. Prüfe Zugriffsrechte und freien Speicher und versuche es erneut oder exportiere den aktuellen Stand.",
     browserDynasties: "Bisher im Browser gespeichert",
     browserStorage: "Browserspeicher",
+    transferDynasty: "In Ordner verschieben",
+    transferFolderHint:
+      "Wählen Sie einen Speicherort. Die App erstellt dort einen Ordner mit dem Namen der Dynastie und speichert weitere Änderungen darin. Der Eintrag im Browser bleibt, bis Sie ihn löschen.",
+    deleteBrowserRecord: "Aus dem Browser löschen",
+    deleteBrowserRecordTitle: "Eintrag „{name}“ aus dem Browser löschen?",
+    deleteBrowserRecordHint:
+      "Der Dynastie-Eintrag „{name}“ wird aus dem Browserspeicher entfernt. Dynastie-Ordner auf dem Datenträger bleiben unverändert. Dies kann nicht rückgängig gemacht werden.",
     importFolderHint:
       "Wähle einen Speicherort. Die App erstellt dort einen eigenen Ordner mit dem Namen der importierten Dynastie und speichert Änderungen darin.",
     deleteFolderDynastyHint:
@@ -94,6 +115,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "Impossible d’enregistrer dans le dossier. Gardez cette fenêtre ouverte. Vérifiez l’accès et l’espace libre, puis réessayez ou exportez la version actuelle.",
     browserDynasties: "Enregistrées auparavant dans le navigateur",
     browserStorage: "Stockage du navigateur",
+    transferDynasty: "Déplacer vers un dossier",
+    transferFolderHint:
+      "Choisissez un emplacement. L’application y créera un dossier au nom de la dynastie et y enregistrera les modifications suivantes. L’enregistrement du navigateur reste jusqu’à ce que vous le supprimiez.",
+    deleteBrowserRecord: "Supprimer du navigateur",
+    deleteBrowserRecordTitle: "Supprimer l’enregistrement « {name} » du navigateur ?",
+    deleteBrowserRecordHint:
+      "L’enregistrement de la dynastie « {name} » sera supprimé du stockage du navigateur. Les dossiers de dynastie sur le disque ne changent pas. Cette action est irréversible.",
     importFolderHint:
       "Choisissez un emplacement. L’application y créera un dossier séparé portant le nom de la dynastie importée et y enregistrera les modifications.",
     deleteFolderDynastyHint:
@@ -119,6 +147,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "No se pudo guardar en la carpeta. Mantén esta ventana abierta. Comprueba el acceso y el espacio libre, y vuelve a intentarlo o exporta la versión actual.",
     browserDynasties: "Guardadas anteriormente en el navegador",
     browserStorage: "Almacenamiento del navegador",
+    transferDynasty: "Mover a una carpeta",
+    transferFolderHint:
+      "Elige una ubicación. La aplicación creará allí una carpeta con el nombre de la dinastía y guardará en ella los cambios siguientes. El registro del navegador se conserva hasta que lo elimines.",
+    deleteBrowserRecord: "Eliminar del navegador",
+    deleteBrowserRecordTitle: "¿Eliminar el registro «{name}» del navegador?",
+    deleteBrowserRecordHint:
+      "El registro de la dinastía «{name}» se eliminará del almacenamiento del navegador. Las carpetas de dinastías en el disco no cambian. Esta acción no se puede deshacer.",
     importFolderHint:
       "Elige una ubicación. La aplicación creará una carpeta separada con el nombre de la dinastía importada y guardará los cambios allí.",
     deleteFolderDynastyHint:
@@ -144,6 +179,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "Não foi possível salvar na pasta. Mantenha esta janela aberta. Verifique o acesso e o espaço livre, depois tente novamente ou exporte a versão atual.",
     browserDynasties: "Salvas anteriormente no navegador",
     browserStorage: "Armazenamento do navegador",
+    transferDynasty: "Mover para uma pasta",
+    transferFolderHint:
+      "Escolha um local. O aplicativo criará ali uma pasta com o nome da dinastia e salvará nela as próximas alterações. O registro do navegador permanece até você excluí-lo.",
+    deleteBrowserRecord: "Excluir do navegador",
+    deleteBrowserRecordTitle: "Excluir o registro “{name}” do navegador?",
+    deleteBrowserRecordHint:
+      "O registro da dinastia “{name}” será removido do armazenamento do navegador. As pastas de dinastias no disco não mudam. Esta ação não pode ser desfeita.",
     importFolderHint:
       "Escolha um local. O aplicativo criará uma pasta separada com o nome da dinastia importada e salvará as alterações ali.",
     deleteFolderDynastyHint:
@@ -165,6 +207,12 @@ export const folderMessages: Record<string, Record<string, string>> = {
     folderSaveFailed: "无法保存到家族文件夹。请保持窗口打开，检查文件夹权限和可用空间，然后重试或导出当前版本。",
     browserDynasties: "此前保存在浏览器中的家族",
     browserStorage: "浏览器存储",
+    transferDynasty: "移到文件夹",
+    transferFolderHint:
+      "请选择保存位置。应用将在其中创建以家族命名的文件夹，并将之后的更改保存在其中。浏览器中的记录会保留，直到你将其删除。",
+    deleteBrowserRecord: "从浏览器删除",
+    deleteBrowserRecordTitle: "要从浏览器删除记录“{name}”吗？",
+    deleteBrowserRecordHint: "家族记录“{name}”将从浏览器存储中删除。磁盘上的家族文件夹不会改变。此操作无法撤销。",
     importFolderHint: "请选择保存位置。应用将在其中创建以导入家族命名的独立文件夹，并将之后的更改保存在其中。",
     deleteFolderDynastyHint:
       "将永久删除整个家族文件夹“{folder}”，包括所有角色、照片、关系、回收站及其中的其他文件。此操作无法撤销。相邻文件夹和文件将保留。",
@@ -188,6 +236,13 @@ export const folderMessages: Record<string, Record<string, string>> = {
       "Чување у фасцикли није успело. Не затварај прозор. Провери приступ и слободан простор, па покушај поново или извези тренутну верзију.",
     browserDynasties: "Раније сачуване у прегледачу",
     browserStorage: "Складиште прегледача",
+    transferDynasty: "Премести у фасциклу",
+    transferFolderHint:
+      "Изаберите место чувања. Апликација ће ту направити фасциклу са именом династије и у њу чувати даље измене. Запис у прегледачу остаје док га не обришете.",
+    deleteBrowserRecord: "Обриши из прегледача",
+    deleteBrowserRecordTitle: "Обрисати запис „{name}” из прегледача?",
+    deleteBrowserRecordHint:
+      "Запис династије „{name}” биће уклоњен из складишта прегледача. Фасцикле династија на диску се не мењају. Ова радња се не може опозвати.",
     importFolderHint:
       "Изабери место чувања. Апликација ће у њему направити посебну фасциклу са именом увезене династије и чувати измене у њој.",
     deleteFolderDynastyHint:

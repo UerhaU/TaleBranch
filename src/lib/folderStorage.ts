@@ -1,19 +1,7 @@
 import type { Project } from "../types";
 import { readProjectDocument, serializeProject } from "./storage";
-import { makeId } from "./id";
-import { isTauri } from "@tauri-apps/api/core";
-import {
-  clearLastDesktopFolder,
-  forgetDesktopFolder,
-  lastDesktopFolder,
-  pickDesktopDirectory,
-  recentDesktopFolders,
-  rememberDesktopFolder,
-} from "./desktopStorage";
 
 export const DYNASTY_FILE = "dynasty.json";
-export const FOLDER_ACTIVE_KEY = "dynasty-chronicles:folder-active";
-const LAST_BOOKMARK_KEY = "dynasty-chronicles:last-folder-bookmark";
 export interface DynastyDirectory {
   name: string;
   readonly displayPath?: string;
@@ -37,18 +25,6 @@ export function dynastyFolderName(name: string): string {
   if (!safe) safe = "Dynasty";
   if (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(safe)) safe = `_${safe}`;
   return safe;
-}
-type PickerWindow = Window & {
-  showDirectoryPicker?: (options: { mode: "readwrite"; id: string }) => Promise<DynastyDirectory>;
-};
-export const supportsDynastyFolders = () =>
-  isTauri() || typeof (window as PickerWindow).showDirectoryPicker === "function";
-export function pickDynastyDirectory(): Promise<DynastyDirectory> {
-  if (isTauri()) return pickDesktopDirectory();
-  const picker = (window as PickerWindow).showDirectoryPicker;
-  if (!picker) return Promise.reject(new Error("FOLDER_UNSUPPORTED"));
-  // Invoke before any await: the browser requires a direct user gesture.
-  return picker.call(window, { mode: "readwrite", id: "talebranch-dynasties" });
 }
 export async function grantDirectory(directory: DynastyDirectory): Promise<void> {
   if (
@@ -199,113 +175,4 @@ export interface RecentFolder {
   name: string;
   directory: DynastyDirectory;
   parent?: DynastyDirectory;
-}
-export async function lastDynastyFolder(): Promise<RecentFolder | undefined> {
-  if (isTauri()) return lastDesktopFolder();
-  if (!localStorage.getItem(FOLDER_ACTIVE_KEY)) return;
-  const id = localStorage.getItem(LAST_BOOKMARK_KEY);
-  if (!id) return;
-  return (await recentDynastyFolders()).find((item) => item.id === id);
-}
-export async function clearLastDynastyFolder(resumeBrowserProject = false): Promise<void> {
-  try {
-    localStorage.removeItem(LAST_BOOKMARK_KEY);
-    if (resumeBrowserProject) localStorage.removeItem(FOLDER_ACTIVE_KEY);
-    else localStorage.setItem(FOLDER_ACTIVE_KEY, "closed");
-  } catch {
-    /* Optional browser metadata. */
-  }
-  if (isTauri()) await clearLastDesktopFolder();
-}
-// Only a directory handle and display metadata: no characters or photographs.
-function bookmarks(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open("talebranch-folder-handles", 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("folders", { keyPath: "id" });
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-export async function recentDynastyFolders(): Promise<RecentFolder[]> {
-  if (isTauri()) return recentDesktopFolders();
-  const db = await bookmarks();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("folders", "readonly");
-    const request = tx.objectStore("folders").getAll();
-    tx.oncomplete = () => {
-      db.close();
-      resolve(request.result);
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
-}
-export async function rememberDynastyFolder(folder: DynastyFolder, project: Project): Promise<void> {
-  if (isTauri()) return rememberDesktopFolder(folder.directory, project.name);
-  // Never resume a previous bookmark if persisting the new one fails.
-  localStorage.removeItem(LAST_BOOKMARK_KEY);
-  const recent = await recentDynastyFolders();
-  let id: string | undefined;
-  for (const item of recent) {
-    try {
-      if (await item.directory.isSameEntry(folder.directory)) {
-        id = item.id;
-        break;
-      }
-    } catch {
-      /* A stale bookmark must not prevent remembering a new folder. */
-    }
-  }
-  id ??= makeId("folder");
-  const bookmarkId = id;
-  const db = await bookmarks();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("folders", "readwrite");
-    tx.objectStore("folders").put({
-      id: bookmarkId,
-      name: project.name,
-      directory: folder.directory,
-      parent: folder.parent,
-    } satisfies RecentFolder);
-    tx.oncomplete = () => {
-      db.close();
-      try {
-        localStorage.setItem(LAST_BOOKMARK_KEY, bookmarkId);
-      } catch {
-        /* Optional bookmark. */
-      }
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
-}
-export async function forgetDynastyFolder(directory: DynastyDirectory): Promise<void> {
-  if (isTauri()) return forgetDesktopFolder(directory);
-  const recent = await recentDynastyFolders();
-  const ids: string[] = [];
-  for (const item of recent) {
-    try {
-      if (await item.directory.isSameEntry(directory)) ids.push(item.id);
-    } catch {
-      /* An unrelated inaccessible folder is left alone. */
-    }
-  }
-  const db = await bookmarks();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("folders", "readwrite");
-    for (const id of ids) tx.objectStore("folders").delete(id);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
 }

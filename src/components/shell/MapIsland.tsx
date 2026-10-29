@@ -13,7 +13,6 @@ export function MapIsland({
   view,
   dialogs,
   total,
-  loadError,
   showMinimap = true,
   onShowAll,
   onAutoLayout,
@@ -21,7 +20,6 @@ export function MapIsland({
   view: TreeView;
   dialogs: Dialogs;
   total: number;
-  loadError: boolean;
   showMinimap?: boolean;
   onShowAll: () => void;
   onAutoLayout: () => void;
@@ -54,7 +52,6 @@ export function MapIsland({
         </button>
         <button
           className="tb-icon-btn tb-autolayout"
-          disabled={loadError}
           onClick={onAutoLayout}
           title={t("arrangeAuto")}
           aria-label={t("arrangeAuto")}

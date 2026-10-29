@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { isTauri } from "@tauri-apps/api/core";
 import {
   Check,
   Database,
@@ -19,6 +18,7 @@ import { TEXT_SIZE, THEMES, type AppearanceApi, type ThemeMode, type ThemeName }
 import type { ProjectApi } from "../../hooks/projectApi";
 import type { CustomStylesApi } from "../../hooks/useCustomStyles";
 import type { TreeView } from "../../hooks/useTreeView";
+import { useDynastyStore } from "../../hooks/useDynastyStore";
 
 const themeLabels: Record<ThemeName, string> = {
   default: "themeDefault",
@@ -81,12 +81,12 @@ function DynastySection({ app, onDeleteDynasty }: { app: ProjectApi; onDeleteDyn
         />
       </label>
       <div className="tb-row-actions">
-        <button className="button danger-text ghost" disabled={app.loadError} onClick={onDeleteDynasty}>
+        <button className="button danger-text ghost" onClick={onDeleteDynasty}>
           <Trash2 size={16} /> {t("deleteDynasty")}
         </button>
         <button
           className="button primary"
-          disabled={!details.name.trim() || !changed || app.loadError}
+          disabled={!details.name.trim() || !changed}
           onClick={() =>
             app.commit((draft) => {
               Object.assign(draft, details, { name: details.name.trim() });
@@ -182,6 +182,7 @@ export function SettingsDialog({
   onClose: () => void;
 }) {
   const { t, preference, systemLocale, setPreference } = useI18n();
+  const storageKind = useDynastyStore().kind;
   const [section, setSection] = useState<Section>("look");
   const detectedLocale = supportedLocales.find((item) => item.code === systemLocale)!;
   const sections: Array<[Section, string, LucideIcon | typeof TreeIcon]> = [
@@ -344,7 +345,7 @@ export function SettingsDialog({
           {section === "data" && (
             <>
               <h3>{t("dataWhere")}</h3>
-              <p className="tb-hint">{t(isTauri() ? "dataHintDesktop" : "dataHintWeb")}</p>
+              <p className="tb-hint">{t(storageKind === "desktop" ? "dataHintDesktop" : "dataHintWeb")}</p>
               {app.folderName && (
                 <div className="tb-row-card">
                   <TreeIcon size={18} />

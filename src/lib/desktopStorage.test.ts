@@ -2,14 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 const runtime = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: runtime.invoke, isTauri: () => true }));
-import {
-  DesktopDirectory,
-  lastDesktopFolder,
-  clearLastDesktopFolder,
-  pickDesktopDirectory,
-  saveDesktopExport,
-} from "./desktopStorage";
-import { pickDynastyDirectory, recentDynastyFolders } from "./folderStorage";
+vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({}) }));
+import { DesktopDirectory, desktopBackend } from "./desktopStorage";
 afterEach(() => {
   runtime.invoke.mockReset();
   vi.unstubAllGlobals();
@@ -21,7 +15,7 @@ describe("native desktop file adapter", () => {
     const browserPicker = vi.fn();
     vi.stubGlobal("showDirectoryPicker", browserPicker);
     runtime.invoke.mockResolvedValueOnce(info);
-    const directory = await pickDynastyDirectory();
+    const directory = await desktopBackend.pick();
     expect(directory).toBeInstanceOf(DesktopDirectory);
     expect(directory.displayPath).toBe(info.path);
     expect(await directory.queryPermission({ mode: "readwrite" })).toBe("granted");
@@ -31,7 +25,7 @@ describe("native desktop file adapter", () => {
   });
   it("treats cancellation as cancellation rather than an empty directory", async () => {
     runtime.invoke.mockResolvedValueOnce(null);
-    await expect(pickDesktopDirectory()).rejects.toMatchObject({ name: "AbortError" });
+    await expect(desktopBackend.pick()).rejects.toMatchObject({ name: "AbortError" });
   });
   it("holds writes until close and sends the original revision for conflict detection", async () => {
     runtime.invoke
@@ -64,29 +58,29 @@ describe("native desktop file adapter", () => {
   });
   it("reconstructs recent folders from native path metadata without browser permission handles", async () => {
     runtime.invoke.mockResolvedValueOnce([{ id: "folder-1", name: "Дом Вороновых", directory: info }]);
-    const recent = await recentDynastyFolders();
+    const recent = await desktopBackend.recent();
     expect(recent[0].directory).toBeInstanceOf(DesktopDirectory);
     expect(recent[0].directory.displayPath).toBe(info.path);
     expect(runtime.invoke).toHaveBeenCalledWith("desktop_recent_folders", undefined);
   });
   it("uses the native Save dialog for JSON and PNG exports", async () => {
     runtime.invoke.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    expect(await saveDesktopExport("Dynasty.dynasty-tree", "{}")).toBe(true);
+    expect(await desktopBackend.saveFile("Dynasty.dynasty-tree", "{}", false)).toBe(true);
     expect(runtime.invoke).toHaveBeenCalledWith("desktop_save_export", {
       name: "Dynasty.dynasty-tree",
       contents: "{}",
       png: false,
     });
-    expect(await saveDesktopExport("Tree.png", "aGVsbG8=", true)).toBe(false);
+    expect(await desktopBackend.saveFile("Tree.png", "aGVsbG8=", true)).toBe(false);
   });
   it("loads and clears the last folder through app settings rather than dynasty contents", async () => {
     runtime.invoke
       .mockResolvedValueOnce({ id: "last", name: "Воробьёвы", directory: info })
       .mockResolvedValueOnce(null);
-    const last = await lastDesktopFolder();
+    const last = await desktopBackend.last();
     expect(last?.directory).toBeInstanceOf(DesktopDirectory);
     expect(last?.directory.displayPath).toBe(info.path);
-    await clearLastDesktopFolder();
+    await desktopBackend.clearLast();
     expect(runtime.invoke.mock.calls).toEqual([
       ["desktop_last_folder", undefined],
       ["desktop_clear_last_folder", undefined],

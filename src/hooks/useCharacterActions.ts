@@ -61,13 +61,12 @@ export function useCharacterActions({
     return {
       edit: (id) => {
         const character = find(id);
-        if (!character || app.loadError) return;
+        if (!character) return;
         view.setSelectedId(id);
         dialogs.close("addCharacter");
         dialogs.open("editCharacter", character);
       },
       addChild: (id) => {
-        if (app.loadError) return;
         view.setSelectedId(id);
         dialogs.close("editCharacter");
         dialogs.open("addCharacter", {
@@ -77,7 +76,6 @@ export function useCharacterActions({
         });
       },
       addParent: (id) => {
-        if (app.loadError) return;
         view.setSelectedId(id);
         dialogs.close("editCharacter");
         dialogs.open("addCharacter", {
@@ -87,11 +85,9 @@ export function useCharacterActions({
         });
       },
       addRelation: (id) => {
-        if (app.loadError) return;
         dialogs.open("link", { kind: "pair", fromId: id });
       },
       photo: (id) => {
-        if (app.loadError) return;
         view.setSelectedId(id);
         photoTarget.current = id;
         photoInput.current?.click();
@@ -114,7 +110,7 @@ export function useCharacterActions({
       },
       trash: (id) => {
         const character = find(id);
-        if (!character || app.loadError) return;
+        if (!character) return;
         dialogs.open("deleteCharacter", {
           character,
           family: project.parentLinks.filter((link) => link.parentId === id || link.childId === id).length,
@@ -123,7 +119,7 @@ export function useCharacterActions({
         });
       },
     };
-  }, [app.loadError, project, dialogs, view, flowInstance]);
+  }, [project, dialogs, view, flowInstance]);
 
   /** A picture chosen for the current life stage goes to the photo editor first. */
   const acceptPhoto = async (file: File | undefined, characterId = photoTarget.current, stageName?: string) => {

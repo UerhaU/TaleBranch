@@ -2,8 +2,6 @@ import type { CSSProperties } from "react";
 import { FolderOpen, ShieldCheck, Sparkles, Upload } from "lucide-react";
 import { TreeIcon } from "../TreeIcon";
 import { useI18n } from "../../i18n";
-import { supportsDynastyFolders } from "../../lib/folderStorage";
-import { listProjects } from "../../lib/storage";
 import type { DynastyFiles } from "../../hooks/useDynastyFiles";
 
 const recentColors = ["blue", "violet", "rose", "amber", "teal", "sky", "coral", "plum"].map(
@@ -13,7 +11,7 @@ const recentColors = ["blue", "violet", "rose", "amber", "teal", "sky", "coral",
 /** Shown while no dynasty is open. */
 export function StartScreen({ files }: { files: DynastyFiles }) {
   const { t } = useI18n();
-  const browserProjects = listProjects();
+  const browserProjects = files.legacyProjects;
   const action = (Icon: typeof Sparkles, title: string, hint: string, onClick: () => void, primary = false) => (
     <button className={`tb-start-btn ${primary ? "primary" : ""}`} aria-label={title} title={hint} onClick={onClick}>
       <span className="tb-start-icon">
@@ -46,7 +44,7 @@ export function StartScreen({ files }: { files: DynastyFiles }) {
             {action(Upload, t("import"), t("importDynastyHint"), files.openImportPicker)}
           </div>
           <p className="tb-start-note">{t("folderHint")}</p>
-          {!supportsDynastyFolders() && (
+          {!files.supported && (
             <p className="tb-start-note" role="note">
               {t("folderUnsupported")}
             </p>
@@ -58,23 +56,19 @@ export function StartScreen({ files }: { files: DynastyFiles }) {
             <p className="tb-recent-empty">{t("recentEmpty")}</p>
           )}
           {files.recentFolders.map((item, index) => (
-            <button
-              className="tb-recent"
-              key={item.id}
-              onClick={() => void files.workWithFolder("open", item.directory)}
-            >
+            <button className="tb-recent" key={item.id} onClick={() => void files.workWithFolder("open", item)}>
               <span className="tb-recent-icon" style={{ "--pc": recentColors[index % 8] } as CSSProperties}>
                 <TreeIcon size={20} />
               </span>
               <span className="tb-recent-text">
                 <span className="tb-recent-name">{item.name}</span>
-                <small>{item.directory.name}</small>
+                <small>{item.folderName}</small>
               </span>
             </button>
           ))}
           {!!browserProjects.length && <h3>{t("browserDynasties")}</h3>}
           {browserProjects.map((item, index) => (
-            <button className="tb-recent" key={item.id} onClick={() => void files.switchProject(item.id)}>
+            <button className="tb-recent" key={item.id} onClick={() => files.startTransfer(item.id)}>
               <span className="tb-recent-icon" style={{ "--pc": recentColors[(index + 3) % 8] } as CSSProperties}>
                 <TreeIcon size={20} />
               </span>
@@ -84,6 +78,14 @@ export function StartScreen({ files }: { files: DynastyFiles }) {
               </span>
             </button>
           ))}
+          {files.legacyUnreadable && (
+            <p className="tb-recent-empty">
+              {t("loadFailedHint")}{" "}
+              <button className="button subtle" onClick={files.downloadLegacyRecovery}>
+                {t("downloadRecovery")}
+              </button>
+            </p>
+          )}
         </section>
         <p className="tb-offline">
           <ShieldCheck size={18} />

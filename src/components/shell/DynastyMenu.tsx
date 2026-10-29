@@ -1,7 +1,6 @@
-import { ChevronDown, Download, FolderInput, FolderOpen, ImageDown, Plus, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, Download, FolderOpen, ImageDown, Plus, Trash2, Upload, X } from "lucide-react";
 import { TreeIcon } from "../TreeIcon";
 import { useI18n } from "../../i18n";
-import { listProjects } from "../../lib/storage";
 import type { Dialogs } from "../../hooks/useDialogs";
 import type { DynastyFiles } from "../../hooks/useDynastyFiles";
 import type { ProjectApi } from "../../hooks/projectApi";
@@ -22,7 +21,6 @@ export function DynastyMenu({
   const { t } = useI18n();
   const { project } = app;
   const open = Boolean(dialogs.state.projectMenu);
-  const browserProjects = listProjects();
   const close = () => dialogs.close("projectMenu");
   return (
     <Popover
@@ -53,22 +51,18 @@ export function DynastyMenu({
         <button
           key={`folder:${item.id}`}
           className="tb-menu-item"
-          onClick={() => void files.workWithFolder("open", item.directory)}
+          onClick={() => void files.workWithFolder("open", item)}
         >
           <FolderOpen size={18} />
           <span>
             <strong>{item.name}</strong>
-            <small>{item.directory.name}</small>
+            <small>{item.folderName}</small>
           </span>
         </button>
       ))}
-      {!!browserProjects.length && <div className="tb-menu-label">{t("browserDynasties")}</div>}
-      {browserProjects.map((item) => (
-        <button
-          key={item.id}
-          className={`tb-menu-item ${item.id === project.id ? "active" : ""}`}
-          onClick={() => files.switchProject(item.id)}
-        >
+      {!!files.legacyProjects.length && <div className="tb-menu-label">{t("browserDynasties")}</div>}
+      {files.legacyProjects.map((item) => (
+        <button key={item.id} className="tb-menu-item" onClick={() => files.startTransfer(item.id)}>
           <TreeIcon size={18} />
           <span>
             <strong>{item.name}</strong>
@@ -91,7 +85,6 @@ export function DynastyMenu({
       </button>
       <button
         className="tb-menu-item"
-        disabled={app.loadError}
         onClick={() => {
           close();
           files.exportProject();
@@ -110,27 +103,19 @@ export function DynastyMenu({
         <ImageDown size={18} />
         <span>{t("exportPng")}</span>
       </button>
-      {!app.folderName && (
-        <button className="tb-menu-item" onClick={files.transferToFolder}>
-          <FolderInput size={18} />
-          <span>{t("saveDynastyFolder")}</span>
-        </button>
-      )}
-      {app.folderName && (
-        <button
-          className="tb-menu-item"
-          onClick={() =>
-            void app.closeFolder().then((ok) => {
-              if (ok) close();
-            })
-          }
-        >
-          <X size={18} />
-          <span>{t("closeDynastyFolder")}</span>
-        </button>
-      )}
+      <button
+        className="tb-menu-item"
+        onClick={() =>
+          void app.closeFolder().then((ok) => {
+            if (ok) close();
+          })
+        }
+      >
+        <X size={18} />
+        <span>{t("closeDynastyFolder")}</span>
+      </button>
       <div className="tb-menu-sep" />
-      <button className="tb-menu-item danger" disabled={app.loadError} onClick={onDeleteDynasty}>
+      <button className="tb-menu-item danger" onClick={onDeleteDynasty}>
         <Trash2 size={18} />
         <span>{t("deleteDynasty")}</span>
       </button>

@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
-import { isTauri } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n";
 import { createEmptyProject } from "../lib/project";
-import { downloadProject, loadProject, readProjectDocument } from "../lib/storage";
+import { exportDocument, readProjectDocument } from "../lib/storage";
 import {
-  DynastyFolder,
-  grantDirectory,
-  pickDynastyDirectory,
-  recentDynastyFolders,
-  type DynastyDirectory,
-  type RecentFolder,
-} from "../lib/folderStorage";
+  deleteLegacyProject,
+  hasUnreadableLegacyRecords,
+  legacyRecoveryData,
+  listLegacyProjects,
+  loadLegacyProject,
+} from "../lib/legacyStorage";
+import type { DynastyPlace, RecentDynasty } from "../lib/dynastyStore";
 import { recordStorageFailure } from "../lib/storageDiagnostics";
-import { saveDesktopExport } from "../lib/desktopStorage";
-import type { Project } from "../types";
+import type { Project, ProjectSummary } from "../types";
 import type { ProjectApi } from "./projectApi";
+import { useDynastyStore } from "./useDynastyStore";
 
 type Options = {
   app: ProjectApi;
@@ -28,47 +27,56 @@ type Options = {
 /** Opening, creating, importing, moving and exporting dynasties. */
 export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Options) {
   const { t } = useI18n();
+  const store = useDynastyStore();
   const { project } = app;
   const [newProjectName, setNewProjectName] = useState<string | undefined>();
   // Keep the native handle stable across name edits and asynchronous renders.
   // Only its display name belongs in form state.
-  const chosenDirectory = useRef<DynastyDirectory | undefined>(undefined);
+  const chosenPlace = useRef<DynastyPlace | undefined>(undefined);
   const [chosenDirectoryName, setChosenDirectoryName] = useState<string>();
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const choosingDirectoryRef = useRef(false);
   const directorySelection = useRef(0);
-  const setChosenDirectory = (directory?: DynastyDirectory) => {
+  const setChosenPlace = (place?: DynastyPlace) => {
     directorySelection.current++;
-    chosenDirectory.current = directory;
-    setChosenDirectoryName(directory ? directory.displayPath || directory.name || "/" : undefined);
+    chosenPlace.current = place;
+    setChosenDirectoryName(place ? place.displayPath || place.name || "/" : undefined);
   };
   const [pendingImport, setPendingImport] = useState<Project>();
-  const [recentFolders, setRecentFolders] = useState<RecentFolder[]>([]);
+  // Set when the pending dynasty is an old browser record being moved into a folder.
+  const [pendingLegacyId, setPendingLegacyId] = useState<string>();
+  const [recentFolders, setRecentFolders] = useState<RecentDynasty[]>([]);
+  const [legacyProjects, setLegacyProjects] = useState<ProjectSummary[]>(listLegacyProjects);
+  const [legacyUnreadable, setLegacyUnreadable] = useState(hasUnreadableLegacyRecords);
   const [folderWorking, setFolderWorking] = useState(false);
   const [folderError, setFolderError] = useState<string>();
   const importInput = useRef<HTMLInputElement>(null);
   const refreshFolders = useCallback(() => {
-    void recentDynastyFolders()
+    void store
+      .recent()
       .then(setRecentFolders)
       .catch(() => {});
-  }, []);
+    setLegacyProjects(listLegacyProjects());
+    setLegacyUnreadable(hasUnreadableLegacyRecords());
+  }, [store]);
   useEffect(refreshFolders, [refreshFolders, project.id, app.folderName, app.hasProject]);
   useEffect(() => {
     if (app.startupError) setFolderError(t("folderFailed"));
   }, [app.startupError, t]);
 
   const startNewProject = () => {
-    setChosenDirectory(undefined);
+    setChosenPlace(undefined);
     setFolderError(undefined);
     setNewProjectName("");
   };
   const cancelNewProject = () => {
-    setChosenDirectory(undefined);
+    setChosenPlace(undefined);
     setNewProjectName(undefined);
   };
   const cancelImport = () => {
-    setChosenDirectory(undefined);
+    setChosenPlace(undefined);
     setPendingImport(undefined);
+    setPendingLegacyId(undefined);
   };
   const openImportPicker = () => importInput.current?.click();
 
@@ -77,7 +85,8 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     try {
       const imported = await readProjectDocument(await file.text());
       setPendingImport(imported);
-      setChosenDirectory(undefined);
+      setPendingLegacyId(undefined);
+      setChosenPlace(undefined);
       setFolderError(undefined);
     } catch {
       notify(t("importFailed"));
@@ -86,25 +95,38 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     }
   };
 
-  const switchProject = async (id: string) => {
-    if (id === project.id && !app.folderName) {
-      closeProjectMenu();
-      return;
-    }
+  /** An old browser record is only moved into a folder; it is never edited in place. */
+  const startTransfer = (id: string) => {
+    closeProjectMenu();
     try {
-      const next = loadProject(id);
-      if (!next) {
+      const saved = loadLegacyProject(id);
+      if (!saved) {
         notify(t("loadFailedHint"));
         return;
       }
-      if (!(await app.replace(next))) {
-        notify(t("saveFailedHint"));
-        return;
-      }
-      onOpened(next);
+      setPendingImport(saved);
+      setPendingLegacyId(id);
+      setChosenPlace(undefined);
+      setFolderError(undefined);
     } catch {
       notify(t("loadFailedHint"));
     }
+  };
+  /** Called only from the confirmation dialog. */
+  const deleteLegacy = () => {
+    if (!pendingLegacyId) return false;
+    try {
+      deleteLegacyProject(pendingLegacyId);
+    } catch {
+      return false;
+    }
+    cancelImport();
+    refreshFolders();
+    notify(t("dynastyDeleted"));
+    return true;
+  };
+  const downloadLegacyRecovery = () => {
+    void store.saveFile("dynasty-recovery.json", legacyRecoveryData()).catch(() => {});
   };
 
   const showFolderFailure = (error: unknown) => {
@@ -128,11 +150,10 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     choosingDirectoryRef.current = true;
     setChoosingDirectory(true);
     try {
-      const directory = await pickDynastyDirectory();
+      const place = await store.choosePlace();
       if (selection !== directorySelection.current) return;
-      if (!directory || typeof directory.name !== "string" || typeof directory.getFileHandle !== "function")
-        throw new Error("INVALID_DIRECTORY_HANDLE");
-      setChosenDirectory(directory);
+      if (!place || typeof place.name !== "string") throw new Error("INVALID_DIRECTORY_HANDLE");
+      setChosenPlace(place);
       setFolderError(undefined);
     } catch (error) {
       if (selection === directorySelection.current) showFolderFailure(error);
@@ -141,60 +162,40 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
       setChoosingDirectory(false);
     }
   };
-  const workWithFolder = async (mode: "open" | "create" | "transfer" | "import", recent?: DynastyDirectory) => {
+  const workWithFolder = async (mode: "open" | "create" | "import", recent?: RecentDynasty) => {
     if (folderWorking || app.busy || choosingDirectoryRef.current) return;
-    const target = mode === "create" || mode === "import" ? chosenDirectory.current : recent;
-    if ((mode === "create" || mode === "import") && !target) {
+    const place = chosenPlace.current;
+    if (mode !== "open" && !place) {
       setFolderError(t("chooseDynastyFolder"));
       return;
     }
-    // A fresh selection already requested read/write access. Do not request it
-    // again on Create/Import; only bookmarks from earlier sessions need renewal.
-    const selection = recent
-      ? grantDirectory(recent).then(() => recent)
-      : target
-        ? Promise.resolve(target)
-        : pickDynastyDirectory();
+    // Started before any await: a browser shows its folder dialog only right after a click.
+    // A place chosen in the dialog already has read/write access and is not asked again.
+    const opening = mode === "open" ? store.open(recent) : undefined;
     setFolderWorking(true);
     setFolderError(undefined);
     try {
-      const directory = await selection;
-      if (mode !== "transfer" && !app.loadError && !(await app.forceSave())) {
+      const opened = await opening;
+      if (!(await app.forceSave())) {
         notify(t("saveFailedHint"));
         return;
       }
       let next: Project;
-      let folder: DynastyFolder;
-      if (mode === "open") {
-        let parent: DynastyDirectory | undefined;
-        for (const item of recentFolders) {
-          try {
-            if (item.parent && (await item.directory.isSameEntry(directory))) {
-              parent = item.parent;
-              break;
-            }
-          } catch {
-            /* A stale bookmark must not block opening a selected folder. */
-          }
-        }
-        ({ project: next, folder } = await DynastyFolder.open(directory, parent));
-      } else {
-        next =
-          mode === "transfer"
-            ? project
-            : mode === "import"
-              ? pendingImport!
-              : createEmptyProject(newProjectName!.trim());
-        folder = await DynastyFolder.createInLocation(directory, next);
+      let dynasty;
+      if (opened) ({ dynasty, project: next } = opened);
+      else {
+        next = mode === "import" ? pendingImport! : createEmptyProject(newProjectName!.trim());
+        dynasty = await store.create(place!, next);
       }
-      if (!(await app.openFolder(folder, next, mode === "transfer"))) {
+      if (!(await app.openFolder(dynasty, next))) {
         notify(t("saveFailedHint"));
         return;
       }
       onOpened(next);
       setNewProjectName(undefined);
       setPendingImport(undefined);
-      setChosenDirectory(undefined);
+      setPendingLegacyId(undefined);
+      setChosenPlace(undefined);
       refreshFolders();
     } catch (error) {
       showFolderFailure(error);
@@ -202,19 +203,17 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
       setFolderWorking(false);
     }
   };
-  const transferToFolder = () => {
-    setChosenDirectory(undefined);
-    void workWithFolder("transfer");
-  };
   const createNewProject = () => {
     if (newProjectName?.trim()) void workWithFolder("create");
   };
 
   const exportProject = () => {
-    void downloadProject(project).catch((error) => {
-      const failure = recordStorageFailure(error, "export");
-      notify(`${t("exportFailed")} ${failure.name}: ${failure.message}`);
-    });
+    void exportDocument(project)
+      .then(({ filename, contents }) => store.saveFile(filename, contents))
+      .catch((error) => {
+        const failure = recordStorageFailure(error, "export");
+        notify(`${t("exportFailed")} ${failure.name}: ${failure.message}`);
+      });
   };
 
   const exportPng = async () => {
@@ -227,30 +226,19 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
         // Floating panels are not part of the tree picture.
         filter: (node) => !(node instanceof HTMLElement && node.classList.contains("tb-no-export")),
       });
-      if (isTauri()) {
-        if (
-          await saveDesktopExport(
-            `${project.name.replace(/\s+/g, "_")}.png`,
-            dataUrl.slice(dataUrl.indexOf(",") + 1),
-            true,
-          )
-        )
-          notify(t("pngCreated"));
-        return;
-      }
-      const anchor = document.createElement("a");
-      anchor.href = dataUrl;
-      anchor.download = `${project.name.replace(/\s+/g, "_")}.png`;
-      anchor.click();
-      notify(t("pngCreated"));
+      const name = `${project.name.replace(/\s+/g, "_")}.png`;
+      if (await store.saveFile(name, dataUrl.slice(dataUrl.indexOf(",") + 1), true)) notify(t("pngCreated"));
     } catch {
       notify(t("pngFailed"));
     }
   };
 
   return {
+    supported: store.supported,
     importInput,
     recentFolders,
+    legacyProjects,
+    legacyUnreadable,
     refreshFolders,
     folderWorking,
     folderError,
@@ -258,6 +246,7 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     newProjectName,
     setNewProjectName,
     pendingImport,
+    pendingLegacyId,
     chosenDirectoryName,
     choosingDirectory,
     startNewProject,
@@ -265,10 +254,11 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     cancelImport,
     openImportPicker,
     handleImport,
-    switchProject,
+    startTransfer,
+    deleteLegacy,
+    downloadLegacyRecovery,
     chooseDirectory,
     workWithFolder,
-    transferToFolder,
     createNewProject,
     exportProject,
     exportPng,
