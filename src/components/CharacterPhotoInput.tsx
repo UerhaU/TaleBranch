@@ -4,6 +4,7 @@ import { Camera, UserRound } from "lucide-react";
 import type { LifeStage, PhotoTransform, StagePhoto } from "../types";
 import { useI18n } from "../i18n";
 import { PhotoEditor } from "./PhotoEditor";
+import { usePhotoSource } from "../hooks/usePhotoSource";
 
 export function CharacterPhotoInput({
   stage,
@@ -65,10 +66,11 @@ export function CharacterPhotoInput({
     next.readAsDataURL(file);
   };
   const photo = stage.photo;
+  const source = usePhotoSource(photo);
   return (
     <section className="character-photo-input span-2" aria-label={t("profilePhoto")}>
       <div className="character-photo-preview">
-        {photo ? <img src={photo.edited || photo.original} alt={t("profilePhoto")} /> : <UserRound size={32} />}
+        {photo ? <img src={source} alt={t("profilePhoto")} /> : <UserRound size={32} />}
       </div>
       <div className="character-photo-controls">
         <strong>{t("profilePhoto")}</strong>

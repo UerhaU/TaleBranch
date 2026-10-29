@@ -41,6 +41,64 @@ describe("export and import format", () => {
     }
   });
 
+  it("exports every original photo once with its crop settings and imports it back", async () => {
+    vi.stubGlobal("crypto", webcrypto);
+    try {
+      const project = createDemoProject();
+      const transform = { zoom: 2, x: -0.2, y: 0.1, rotation: 180, flipped: true };
+      const photo = {
+        original: `data:image/jpeg;base64,${btoa("photo".repeat(3000))}`,
+        edited: "data:image/webp;base64,Y3JvcA==",
+        transform,
+        updatedAt: project.updatedAt,
+      };
+      project.characters[0].stages[0].photo = photo;
+      project.characters[1].stages[0].photo = { ...photo };
+      const { contents } = await exportDocument(project);
+      const raw = JSON.parse(contents);
+      expect(raw.formatVersion).toBe(2);
+      expect(Object.values(raw.photos)).toEqual([photo.original]);
+      expect(JSON.stringify(raw.project)).not.toContain("data:image");
+      const imported = await importProject(file(raw), "копия");
+      for (const character of imported.characters.slice(0, 2))
+        expect(character.stages[0].photo).toEqual({ original: photo.original, transform, updatedAt: photo.updatedAt });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("imports an old export with both photo copies inside the project", async () => {
+    const source = manifest();
+    const photo = {
+      original: "data:image/png;base64,b3JpZ2luYWw=",
+      edited: "data:image/webp;base64,Y3JvcA==",
+      updatedAt: source.project.updatedAt,
+    };
+    source.project.characters[0].stages[0].photo = photo;
+    const imported = await importProject(file(source), "копия");
+    expect(imported.characters[0].stages[0].photo).toEqual(photo);
+  });
+
+  it("does not open a photo-file document without its photos", async () => {
+    vi.stubGlobal("crypto", webcrypto);
+    try {
+      const project = createDemoProject();
+      project.characters[0].stages[0].photo = {
+        original: "data:image/png;base64,b3JpZ2luYWw=",
+        updatedAt: project.updatedAt,
+      };
+      const raw = JSON.parse((await exportDocument(project)).contents);
+      delete raw.photos;
+      await expect(importProject(file(raw), "копия")).rejects.toThrow("PHOTOS_UNAVAILABLE");
+      raw.photos = {};
+      raw.project.characters[0].stages[0].photo.file = "photos/../dynasty.json";
+      delete raw.contentHash;
+      await expect(importProject(file(raw), "копия")).rejects.toThrow("INVALID_PROJECT_FORMAT");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("reads existing exports as a new independent project", async () => {
     const source = manifest();
     const imported = await importProject(file(source), "копия");
@@ -52,7 +110,7 @@ describe("export and import format", () => {
 
   it.each([
     null,
-    { ...manifest(), formatVersion: 2 },
+    { ...manifest(), formatVersion: 3 },
     { ...manifest(), app: "different-app" },
     { ...manifest(), project: { ...createEmptyProject(), characters: [{}] } },
     { ...manifest(), checksum: "0:0:0" },

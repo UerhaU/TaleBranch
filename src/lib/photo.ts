@@ -23,3 +23,51 @@ export function drawPhoto(
   context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
   context.restore();
 }
+
+// Crops drawn this session, by original picture and crop settings. Small, so they are kept.
+const crops = new Map<string, Map<string, Promise<string>>>();
+const drawn = new Map<string, Map<string, string>>();
+const cropKey = (transform: PhotoTransform) =>
+  `${transform.zoom}|${transform.x}|${transform.y}|${transform.rotation}|${transform.flipped}`;
+
+/** A crop that is already drawn, without waiting. */
+export function drawnCrop(original: string, transform: PhotoTransform): string | undefined {
+  return drawn.get(original)?.get(cropKey(transform));
+}
+
+/** dynasty.json keeps only the original and its crop settings; the crop is drawn again for display. */
+export function cropPhoto(original: string, transform: PhotoTransform, size = 400): Promise<string> {
+  const key = cropKey(transform);
+  let byTransform = crops.get(original);
+  if (!byTransform) crops.set(original, (byTransform = new Map()));
+  let crop = byTransform.get(key);
+  if (!crop) {
+    crop = new Promise<string>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const context = canvas.getContext("2d");
+        if (!context) return reject(new Error("NO_CANVAS"));
+        drawPhoto(context, image, transform, size);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(URL.createObjectURL(blob)) : reject(new Error("NO_CROP"))),
+          "image/webp",
+          0.9,
+        );
+      };
+      image.onerror = () => reject(new Error("IMAGE_READ_ERROR"));
+      image.src = original;
+    });
+    byTransform.set(key, crop);
+    crop.then(
+      (url) => {
+        if (!drawn.has(original)) drawn.set(original, new Map());
+        drawn.get(original)!.set(key, url);
+      },
+      // A failed drawing may be tried again later.
+      () => byTransform.delete(key),
+    );
+  }
+  return crop;
+}

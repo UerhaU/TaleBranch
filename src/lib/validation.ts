@@ -148,7 +148,7 @@ function character(value: unknown): Character {
       photo: photo
         ? {
             original: image(photo.original),
-            edited: image(photo.edited),
+            edited: photo.edited === undefined ? undefined : image(photo.edited),
             updatedAt: string(photo.updatedAt),
             transform: transform
               ? {

@@ -351,8 +351,8 @@ describe("restoring the last dynasty on startup", () => {
     project.name = "Воробьёвы";
     project.characters[0].notes = "Latest disk change";
     project.characters[0].stages[0].photo = {
-      original: "data:image/png;base64,photo",
-      edited: "data:image/png;base64,crop",
+      original: "data:image/png;base64,cGhvdG8=",
+      edited: "data:image/png;base64,Y3JvcA==",
       updatedAt: project.updatedAt,
     };
     const directory = await seed(project);

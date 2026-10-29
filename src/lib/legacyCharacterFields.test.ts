@@ -90,26 +90,26 @@ describe("старые поля персонажа (этап 14)", () => {
 
   it("не записывает старые поля, и повторное открытие ничего не меняет", async () => {
     const first = await readProjectDocument(oldDocument(legacyProject()));
-    const text = await serializeProject(first);
+    const text = (await serializeProject(first)).text;
     const saved = JSON.parse(text).project.characters[0];
     for (const key of legacyKeys) expect(saved).not.toHaveProperty(key);
     const second = await readProjectDocument(text);
     expect(second).toEqual(first);
-    expect(await serializeProject(second)).toBe(text);
+    expect((await serializeProject(second)).text).toBe(text);
   });
 
   it("переносит старые поля при импорте файла .dynasty-tree и сохраняет их при экспорте", async () => {
     const file = new File([oldDocument(legacyProject())], "old.dynasty-tree");
     const imported = await importProject(file, "копия");
     expect(imported.characters[0].catalog?.customTraits).toEqual(["Своя черта", "Гений"]);
-    const exported = await serializeProject(imported);
+    const exported = (await serializeProject(imported)).text;
     expect(exported).not.toMatch(/"(aspiration|traits|occultType|deathCause)":/);
     const again = await importProject(new File([exported], "new.dynasty-tree"), "копия");
     expect(again.characters[0].catalog).toEqual(imported.characters[0].catalog);
   });
 
   it("старая бета может прочитать новый файл: номер формата и версия справочника прежние", async () => {
-    const text = await serializeProject(parseProject(legacyProject()));
+    const text = (await serializeProject(parseProject(legacyProject()))).text;
     const raw = JSON.parse(text);
     expect(raw.formatVersion).toBe(1);
     expect(raw.project.formatVersion).toBe(1);

@@ -4,6 +4,8 @@ import type { DynastyDirectory } from "./folderStorage";
 export class MemoryDirectory implements DynastyDirectory {
   name = "Династия на диске D";
   files = new Map<string, string>();
+  /** Picture files, written as bytes. */
+  binary = new Map<string, Uint8Array>();
   directories = new Map<string, MemoryDirectory>();
   failWrite = false;
   failClose = false;
@@ -22,6 +24,7 @@ export class MemoryDirectory implements DynastyDirectory {
   }
   async *values() {
     for (const name of this.files.keys()) yield { name };
+    for (const name of this.binary.keys()) yield { name };
     for (const name of this.directories.keys()) yield { name };
   }
   async getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<MemoryDirectory> {
@@ -42,6 +45,7 @@ export class MemoryDirectory implements DynastyDirectory {
     if (!options?.recursive && (this.files.size || this.directories.size))
       throw new DOMException("Not empty", "InvalidModificationError");
     this.files.clear();
+    this.binary.clear();
     this.directories.clear();
     this.deleted = true;
   }
@@ -53,12 +57,12 @@ export class MemoryDirectory implements DynastyDirectory {
       this.directories.delete(name);
       return;
     }
-    if (!this.files.delete(name)) throw new DOMException("Missing file", "NotFoundError");
+    if (!this.files.delete(name) && !this.binary.delete(name)) throw new DOMException("Missing file", "NotFoundError");
   }
   async getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle> {
     if (this.deleted) throw new DOMException("Missing folder", "NotFoundError");
     if (this.directories.has(name)) throw new DOMException("A folder exists", "TypeMismatchError");
-    if (!this.files.has(name)) {
+    if (!this.files.has(name) && !this.binary.has(name)) {
       if (!options?.create) throw new DOMException("Missing file", "NotFoundError");
       this.files.set(name, "");
     }
@@ -66,21 +70,29 @@ export class MemoryDirectory implements DynastyDirectory {
       kind: "file",
       name,
       getFile: async () => {
+        const bytes = this.binary.get(name);
+        if (bytes) return { text: async () => "", size: bytes.length, arrayBuffer: async () => bytes.slice().buffer };
         if (!this.files.has(name)) throw new DOMException("Missing file", "NotFoundError");
         const text = this.files.get(name)!;
         return { text: async () => text, size: text.length };
       },
       createWritable: async () => {
-        let pending = "";
+        let pending: string | Uint8Array = "";
         return {
-          write: async (text: string) => {
+          write: async (data: string | Uint8Array) => {
             await this.holdWrite?.();
             if (this.failWrite) throw new DOMException("Disk full", "QuotaExceededError");
-            pending = text;
+            pending = data;
           },
           close: async () => {
             if (this.failClose) throw new DOMException("Permission lost", "NotAllowedError");
-            this.files.set(name, pending);
+            if (typeof pending === "string") {
+              this.binary.delete(name);
+              this.files.set(name, pending);
+            } else {
+              this.files.delete(name);
+              this.binary.set(name, pending.slice());
+            }
           },
           abort: async () => {},
         };

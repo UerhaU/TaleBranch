@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
+import { usePhotoSource } from "../hooks/usePhotoSource";
 import type { Character, PairLink, ParentLink, Project, RelationshipDirection, RelationshipLabel } from "../types";
 import { makeId } from "../lib/id";
 import { wouldCreateAncestorCycle } from "../lib/project";
@@ -46,11 +47,11 @@ export type LinkEdit =
 function getCharacterPhoto(character?: Character) {
   if (!character) return undefined;
   const activeStage = character.stages.find((stage) => stage.name === character.lifeStage);
-  return activeStage?.photo?.edited ?? activeStage?.photo?.original;
+  return activeStage?.photo;
 }
 
 function CharacterAvatar({ character }: { character: Character }) {
-  const photo = getCharacterPhoto(character);
+  const photo = usePhotoSource(getCharacterPhoto(character));
   const initials = character.displayName
     .split(/\s+/)
     .slice(0, 2)

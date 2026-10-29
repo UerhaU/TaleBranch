@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -10,6 +11,11 @@ use std::{
 };
 
 const FILE_NAME: &str = "dynasty.json";
+/// Pictures of a dynasty: `<dynasty>/photos/<sha256>.<jpg|png|webp>`, named by their content.
+const PHOTO_FOLDER: &str = "photos";
+const MAX_PHOTO_SIZE: u64 = 64 * 1024 * 1024;
+/// A copy of dynasty.json from before its photos moved out.
+const BACKUP_NAME: &str = "dynasty.backup-before-photos";
 
 #[derive(Debug, Serialize)]
 pub struct StorageError {
@@ -101,6 +107,41 @@ impl Storage {
         }
         Ok(path)
     }
+    /// `<dynasty>/photos` as a real folder directly inside the dynasty; `None` when it does not exist yet.
+    fn photo_folder(&self, directory: &str, create: bool) -> Result<Option<PathBuf>> {
+        let directory = self.directory(directory)?;
+        let folder = directory.join(PHOTO_FOLDER);
+        match fs::symlink_metadata(&folder) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err(failure("INVALID_PHOTO_FOLDER"));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound && create => fs::create_dir(&folder)?,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        }
+        let canonical = fs::canonicalize(&folder)?;
+        if canonical.parent() != Some(directory.as_path()) {
+            return Err(failure("INVALID_PHOTO_FOLDER"));
+        }
+        Ok(Some(canonical))
+    }
+    /// Only our own file names directly inside the photos folder: no `..`, other folders or links.
+    fn photo(&self, folder: &Path, name: &str) -> Result<PathBuf> {
+        if !photo_name(name) {
+            return Err(failure("INVALID_PHOTO_NAME"));
+        }
+        let path = folder.join(name);
+        if let Ok(metadata) = fs::symlink_metadata(&path) {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(failure("INVALID_PHOTO_FILE"));
+            }
+            if fs::canonicalize(&path)?.parent() != Some(folder) {
+                return Err(failure("INVALID_PHOTO_FILE"));
+            }
+        }
+        Ok(path)
+    }
     pub fn execute(&self, request: Request) -> Result<Value> {
         match request {
             Request::List { directory } => {
@@ -175,6 +216,103 @@ impl Storage {
                     return Err(failure("UNMANAGED_FILE"));
                 }
                 Ok(Value::Null)
+            }
+            Request::PhotoList { directory } => {
+                let Some(folder) = self.photo_folder(&directory, false)? else {
+                    return Ok(json!([]));
+                };
+                let mut names = vec![];
+                for entry in fs::read_dir(folder)? {
+                    let entry = entry?;
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    if photo_name(&name) && entry.file_type()?.is_file() {
+                        names.push(name);
+                    }
+                }
+                Ok(json!(names))
+            }
+            Request::PhotoRead { directory, name } => {
+                if !photo_name(&name) {
+                    return Err(failure("INVALID_PHOTO_NAME"));
+                }
+                let Some(folder) = self.photo_folder(&directory, false)? else {
+                    return Ok(Value::Null);
+                };
+                let path = self.photo(&folder, &name)?;
+                let metadata = match fs::metadata(&path) {
+                    Ok(metadata) => metadata,
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Value::Null),
+                    Err(error) => return Err(error.into()),
+                };
+                if metadata.len() > MAX_PHOTO_SIZE {
+                    return Err(failure("PHOTO_TOO_LARGE"));
+                }
+                Ok(json!(STANDARD.encode(fs::read(path)?)))
+            }
+            Request::PhotoWrite {
+                directory,
+                name,
+                base64,
+            } => {
+                if !photo_name(&name) {
+                    return Err(failure("INVALID_PHOTO_NAME"));
+                }
+                let bytes = STANDARD.decode(base64).map_err(|_| failure("INVALID_PHOTO_DATA"))?;
+                // The name is the content's hash, so a file can never be replaced by a different picture.
+                let content = format!("{:x}.", Sha256::digest(&bytes));
+                if bytes.len() as u64 > MAX_PHOTO_SIZE || !name.starts_with(&content) {
+                    return Err(failure("INVALID_PHOTO_DATA"));
+                }
+                let folder = self
+                    .photo_folder(&directory, true)?
+                    .ok_or_else(|| failure("INVALID_PHOTO_FOLDER"))?;
+                let path = self.photo(&folder, &name)?;
+                if !path.exists() {
+                    atomic_write(&path, &bytes)?;
+                }
+                Ok(Value::Null)
+            }
+            Request::PhotoRemove { directory, name } => {
+                if !photo_name(&name) {
+                    return Err(failure("INVALID_PHOTO_NAME"));
+                }
+                let Some(folder) = self.photo_folder(&directory, false)? else {
+                    return Ok(Value::Null);
+                };
+                match fs::remove_file(self.photo(&folder, &name)?) {
+                    Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
+                    _ => Ok(Value::Null),
+                }
+            }
+            Request::Backup { directory, expected } => {
+                // A copy of dynasty.json before its photos move out. An existing copy is never replaced.
+                let path = self.file(&directory)?;
+                let text = fs::read_to_string(&path)?;
+                if hash(&text) != expected {
+                    return Err(failure("FOLDER_CONFLICT"));
+                }
+                let parent = self.directory(&directory)?;
+                let mut number = 1;
+                loop {
+                    let name = match number {
+                        1 => format!("{BACKUP_NAME}.json"),
+                        _ => format!("{BACKUP_NAME} ({number}).json"),
+                    };
+                    number += 1;
+                    let backup = parent.join(&name);
+                    match fs::symlink_metadata(&backup) {
+                        Ok(metadata) if metadata.is_file() && fs::read(&backup)? == text.as_bytes() => {
+                            return Ok(json!(name));
+                        }
+                        Ok(_) => continue,
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                        Err(error) => return Err(error.into()),
+                    }
+                    let mut file = OpenOptions::new().write(true).create_new(true).open(&backup)?;
+                    file.write_all(text.as_bytes())?;
+                    file.sync_all()?;
+                    return Ok(json!(name));
+                }
             }
             Request::DeleteDynasty { directory, expected } => {
                 let path = self.directory(&directory)?;
@@ -306,6 +444,26 @@ pub enum Request {
         directory: String,
         expected: String,
     },
+    PhotoList {
+        directory: String,
+    },
+    PhotoRead {
+        directory: String,
+        name: String,
+    },
+    PhotoWrite {
+        directory: String,
+        name: String,
+        base64: String,
+    },
+    PhotoRemove {
+        directory: String,
+        name: String,
+    },
+    Backup {
+        directory: String,
+        expected: String,
+    },
 }
 fn describe(path: &Path) -> Directory {
     Directory {
@@ -331,12 +489,23 @@ fn valid_name(name: &str) -> Result<()> {
     }
     Ok(())
 }
+/// `<64 hex digits>.jpg|png|webp`, exactly as photoFiles.ts names pictures.
+fn photo_name(name: &str) -> bool {
+    let Some((stem, extension)) = name.split_once('.') else {
+        return false;
+    };
+    stem.len() == 64
+        && stem.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        && matches!(extension, "jpg" | "png" | "webp")
+}
 fn hash(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))
 }
 fn validate_document(text: &str) -> Result<()> {
     let value: Value = serde_json::from_str(text).map_err(|_| failure("INVALID_PROJECT_FORMAT"))?;
-    if value["app"] != "dynasty-chronicles" || value["formatVersion"] != 1 || !value["project"].is_object() {
+    // Version 2 refers to photo files instead of keeping the pictures inside.
+    let version = value["formatVersion"].as_u64();
+    if value["app"] != "dynasty-chronicles" || !matches!(version, Some(1 | 2)) || !value["project"].is_object() {
         return Err(failure("INVALID_PROJECT_FORMAT"));
     }
     Ok(())
@@ -476,6 +645,137 @@ mod tests {
             .is_ok());
         reopened.forget(&root.path).unwrap();
         assert!(reopened.recent().unwrap().is_empty());
+    }
+    fn photo_request(directory: &str, bytes: &[u8]) -> (String, Request) {
+        let name = format!("{:x}.png", Sha256::digest(bytes));
+        let request = Request::PhotoWrite {
+            directory: directory.into(),
+            name: name.clone(),
+            base64: STANDARD.encode(bytes),
+        };
+        (name, request)
+    }
+    fn photo_list(storage: &Storage, directory: &str) -> Result<Value> {
+        storage.execute(Request::PhotoList {
+            directory: directory.into(),
+        })
+    }
+    fn backup(storage: &Storage, directory: &str, expected: String) -> Result<Value> {
+        storage.execute(Request::Backup {
+            directory: directory.into(),
+            expected,
+        })
+    }
+    #[test]
+    fn photos_round_trip_inside_the_dynasty_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        assert_eq!(photo_list(&storage, &root.path).unwrap(), json!([]));
+        let (name, write) = photo_request(&root.path, b"Picture");
+        storage.execute(write).unwrap();
+        assert_eq!(fs::read(temp.path().join(PHOTO_FOLDER).join(&name)).unwrap(), b"Picture");
+        fs::write(temp.path().join(PHOTO_FOLDER).join("notes.txt"), "Keep").unwrap();
+        assert_eq!(photo_list(&storage, &root.path).unwrap(), json!([name.clone()]));
+        let read = storage
+            .execute(Request::PhotoRead {
+                directory: root.path.clone(),
+                name: name.clone(),
+            })
+            .unwrap();
+        assert_eq!(STANDARD.decode(read.as_str().unwrap()).unwrap(), b"Picture");
+        storage
+            .execute(Request::PhotoRemove {
+                directory: root.path.clone(),
+                name: name.clone(),
+            })
+            .unwrap();
+        assert_eq!(photo_list(&storage, &root.path).unwrap(), json!([]));
+        let missing = storage
+            .execute(Request::PhotoRead {
+                directory: root.path.clone(),
+                name,
+            })
+            .unwrap();
+        assert_eq!(missing, Value::Null);
+        assert_eq!(fs::read_to_string(temp.path().join(PHOTO_FOLDER).join("notes.txt")).unwrap(), "Keep");
+    }
+    #[test]
+    fn photo_paths_outside_the_dynasty_or_foreign_files_are_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        let (_, outside) = photo_request(&other.path().to_string_lossy(), b"Picture");
+        assert!(storage.execute(outside).is_err());
+        assert!(fs::read_dir(other.path()).unwrap().next().is_none());
+        let hex = format!("{:x}", Sha256::digest(b"Picture"));
+        for name in [
+            format!("../{hex}.png"),
+            format!("..\\{hex}.png"),
+            format!("sub/{hex}.png"),
+            format!("{hex}.png:stream"),
+            format!("{hex}.exe"),
+            format!("{}.png", hex.to_uppercase()),
+            "notes.txt".into(),
+            FILE_NAME.into(),
+            "..".into(),
+        ] {
+            let write = Request::PhotoWrite {
+                directory: root.path.clone(),
+                name: name.clone(),
+                base64: STANDARD.encode(b"Picture"),
+            };
+            assert!(storage.execute(write).is_err(), "{name}");
+            let read = Request::PhotoRead {
+                directory: root.path.clone(),
+                name: name.clone(),
+            };
+            assert!(storage.execute(read).is_err(), "{name}");
+            let remove = Request::PhotoRemove {
+                directory: root.path.clone(),
+                name: name.clone(),
+            };
+            assert!(storage.execute(remove).is_err(), "{name}");
+        }
+        // A picture is stored only under its own content hash.
+        let wrong = Request::PhotoWrite {
+            directory: root.path.clone(),
+            name: format!("{hex}.png"),
+            base64: STANDARD.encode(b"Different"),
+        };
+        assert!(storage.execute(wrong).is_err());
+        assert!(!temp.path().join(PHOTO_FOLDER).join(format!("{hex}.png")).exists());
+        // A file named "photos" is the user's own and is not replaced by a folder.
+        fs::write(temp.path().join(PHOTO_FOLDER), "Not a folder").unwrap();
+        let (_, blocked) = photo_request(&root.path, b"Picture");
+        assert!(storage.execute(blocked).is_err());
+        assert!(photo_list(&storage, &root.path).is_err());
+        assert_eq!(fs::read_to_string(temp.path().join(PHOTO_FOLDER)).unwrap(), "Not a folder");
+    }
+    #[test]
+    fn backup_before_photos_never_replaces_an_existing_copy() {
+        let temp = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        let old = document("Old");
+        fs::write(temp.path().join(FILE_NAME), &old).unwrap();
+        assert!(backup(&storage, &root.path, hash("stale")).is_err());
+        let first = format!("{BACKUP_NAME}.json");
+        assert_eq!(backup(&storage, &root.path, hash(&old)).unwrap(), json!(first));
+        assert_eq!(backup(&storage, &root.path, hash(&old)).unwrap(), json!(first));
+        let newer = document("Newer");
+        fs::write(temp.path().join(FILE_NAME), &newer).unwrap();
+        let second = backup(&storage, &root.path, hash(&newer)).unwrap();
+        assert_eq!(second, json!(format!("{BACKUP_NAME} (2).json")));
+        assert_eq!(fs::read_to_string(temp.path().join(first)).unwrap(), old);
+    }
+    #[test]
+    fn documents_with_photo_files_are_accepted() {
+        let photos = json!({"app":"dynasty-chronicles","formatVersion":2,"project":{"name":"Photos"}});
+        assert!(validate_document(&photos.to_string()).is_ok());
+        let future = json!({"app":"dynasty-chronicles","formatVersion":3,"project":{"name":"Future"}});
+        assert!(validate_document(&future.to_string()).is_err());
     }
     #[test]
     fn a_locked_dynasty_cannot_be_written_by_a_second_process() {

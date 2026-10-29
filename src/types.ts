@@ -4,7 +4,8 @@ export type Theme = "dark" | "light";
 
 export interface StagePhoto {
   original: string;
-  edited: string;
+  /** The crop drawn in this session. Loaded photos are drawn again from original and transform. */
+  edited?: string;
   updatedAt: string;
   transform?: PhotoTransform;
 }

@@ -14,12 +14,13 @@ import {
   Trash2,
   UsersRound,
 } from "lucide-react";
-import type { Character, Project } from "../types";
+import type { Character, Project, StagePhoto } from "../types";
 import { useI18n } from "../i18n";
 import type { LinkEdit } from "./LinkDialog";
 import { CatalogValue } from "./CatalogDisplay";
 import { GameIcon } from "./CatalogPicker";
 import { Avatar } from "./CharacterNode";
+import { usePhotoSource } from "../hooks/usePhotoSource";
 import { relationIcons } from "./RelationshipEdge";
 import { CharacterMenuItems, type CharacterActions } from "./shell/CharacterMenu";
 import { PanelShell } from "./shell/PanelShell";
@@ -49,6 +50,10 @@ function Section({ title, children, action }: { title: string; children: ReactNo
       {children}
     </section>
   );
+}
+
+function StagePhotoImage({ photo }: { photo: StagePhoto }) {
+  return <img src={usePhotoSource(photo)} alt="" />;
 }
 
 function RelationIcon({ icon, color }: { icon: string; color: string }) {
@@ -450,8 +455,8 @@ export function Inspector({
                   onClick={() => setActivePhotoStage(stage.name)}
                 >
                   <span className="tb-stage-thumb">
-                    {stage.photo?.edited ? (
-                      <img src={stage.photo.edited} alt="" />
+                    {stage.photo ? (
+                      <StagePhotoImage photo={stage.photo} />
                     ) : ageEntry(character, stage.name) ? (
                       <GameIcon entry={ageEntry(character, stage.name)} />
                     ) : (

@@ -35,6 +35,8 @@ const fail = (name: string, message = name) => Promise.reject({ name, message })
 export class FakeNative {
   directories = new Set<string>(["D:"]);
   files = new Map<string, string>();
+  /** "<dynasty>\\photos\\<name>" → base64, as Rust reads and writes them. */
+  photos = new Map<string, string>();
   recent: Recent[] = [];
   last: Recent | null = null;
   exports: Array<{ name: string; contents: string; png: boolean }> = [];
@@ -96,11 +98,33 @@ export class FakeNative {
         this.files.delete(path);
         return Promise.resolve(null);
       }
+      case "photoList": {
+        const prefix = `${directory}\\photos\\`;
+        const names = [...this.photos.keys()].filter((path) => path.startsWith(prefix));
+        return Promise.resolve(names.map((path) => path.slice(prefix.length)));
+      }
+      case "photoRead":
+        return Promise.resolve(this.photos.get(`${directory}\\photos\\${request.name}`) ?? null);
+      case "photoWrite":
+        if (this.failWrite) return fail("QuotaExceededError", "Disk full");
+        this.directories.add(`${directory}\\photos`);
+        this.photos.set(`${directory}\\photos\\${request.name}`, request.base64);
+        return Promise.resolve(null);
+      case "photoRemove":
+        this.photos.delete(`${directory}\\photos\\${request.name}`);
+        return Promise.resolve(null);
+      case "backup": {
+        if (revision() !== request.expected) return fail("Error", "FOLDER_CONFLICT");
+        const name = "dynasty.backup-before-photos.json";
+        this.files.set(`${directory}\\${name}`, this.files.get(file)!);
+        return Promise.resolve(name);
+      }
       case "deleteDynasty": {
         if (revision() !== request.expected) return fail("Error", "FOLDER_CONFLICT");
         const inside = (path: string) => path === directory || path.startsWith(`${directory}\\`);
         for (const path of [...this.directories]) if (inside(path)) this.directories.delete(path);
         for (const path of [...this.files.keys()]) if (inside(path)) this.files.delete(path);
+        for (const path of [...this.photos.keys()]) if (inside(path)) this.photos.delete(path);
         return Promise.resolve(null);
       }
     }

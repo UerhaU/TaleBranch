@@ -1,10 +1,11 @@
 import { createContext, useContext, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Bone, CircleUserRound, Ghost, HeartHandshake, PawPrint, Plus, Skull } from "lucide-react";
-import type { Character } from "../types";
+import type { Character, StagePhoto } from "../types";
 import { useI18n } from "../i18n";
 import { CatalogValue } from "./CatalogDisplay";
 import { displayColor } from "../lib/colors";
+import { usePhotoSource } from "../hooks/usePhotoSource";
 
 export type CharacterNodeData = {
   character: Character;
@@ -26,7 +27,11 @@ export const QuickLinkContext = createContext<
 
 function activePhoto(character: Character) {
   const stage = character.stages.find((item) => item.name === character.lifeStage);
-  return stage?.photo?.edited ?? stage?.photo?.original;
+  return stage?.photo;
+}
+
+function PhotoImage({ photo }: { photo: StagePhoto }) {
+  return <img src={usePhotoSource(photo)} alt="" draggable={false} />;
 }
 
 function initials(character: Character) {
@@ -50,7 +55,7 @@ export function Avatar({
   ring?: boolean;
   children?: ReactNode;
 }) {
-  const photo = activePhoto(character);
+  const photo = usePhotoSource(activePhoto(character));
   return (
     <span
       className={`tb-avatar ${ring ? "tb-avatar-ring" : ""}`}
@@ -126,11 +131,7 @@ export function CharacterNode({ data }: NodeProps) {
                 onOpen(pet.id);
               }}
             >
-              {petPhoto ? (
-                <img src={petPhoto} alt="" draggable={false} />
-              ) : (
-                <span>{initials(pet) || <PawPrint size={12} />}</span>
-              )}
+              {petPhoto ? <PhotoImage photo={petPhoto} /> : <span>{initials(pet) || <PawPrint size={12} />}</span>}
               <i>
                 <PawPrint size={9} />
               </i>

@@ -1,7 +1,18 @@
 import type { Project } from "../types";
 import { readProjectDocument, serializeProject } from "./storage";
+import {
+  bytesDataUrl,
+  dataUrlBytes,
+  hasPhotos,
+  isPhotoFile,
+  PHOTO_FOLDER,
+  photoType,
+  type PhotoFiles,
+} from "./photoFiles";
 
 export const DYNASTY_FILE = "dynasty.json";
+/** A copy of dynasty.json from before photos became separate files. */
+export const PHOTO_BACKUP_FILE = "dynasty.backup-before-photos.json";
 export interface DynastyDirectory {
   name: string;
   readonly displayPath?: string;
@@ -10,6 +21,10 @@ export interface DynastyDirectory {
   removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
   remove?(options?: { recursive?: boolean }): Promise<void>;
   deleteDynasty?(expected: string): Promise<void>;
+  /** Native photo files; other directories use the photos folder handle. */
+  photoFiles?(): PhotoFiles;
+  /** Native copy of dynasty.json with the given revision; returns the backup name. */
+  backupDynasty?(expected: string): Promise<string>;
   values(): AsyncIterableIterator<{ name: string }>;
   queryPermission(options: { mode: "readwrite" }): Promise<PermissionState>;
   requestPermission(options: { mode: "readwrite" }): Promise<PermissionState>;
@@ -38,24 +53,112 @@ async function digest(text: string) {
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+const missing = (error: unknown) => (error as Error)?.name === "NotFoundError";
+const readText = async (directory: DynastyDirectory, name: string) =>
+  (await directory.getFileHandle(name)).getFile().then((file) => file.text());
+
+/** The photos folder through directory handles: a browser folder or the test disk. */
+function handlePhotoFiles(directory: DynastyDirectory): PhotoFiles {
+  const folder = (create = false) => directory.getDirectoryHandle(PHOTO_FOLDER, { create });
+  return {
+    async list() {
+      let photos: DynastyDirectory;
+      try {
+        photos = await folder();
+      } catch (error) {
+        if (missing(error)) return [];
+        throw error;
+      }
+      const names: string[] = [];
+      for await (const entry of photos.values()) if (isPhotoFile(entry.name)) names.push(entry.name);
+      return names;
+    },
+    async read(name) {
+      try {
+        const file = await (await (await folder()).getFileHandle(name)).getFile();
+        return bytesDataUrl(new Uint8Array(await file.arrayBuffer()), photoType(name));
+      } catch (error) {
+        if (missing(error)) return undefined;
+        throw error;
+      }
+    },
+    async write(name, dataUrl) {
+      const writer = await (await (await folder(true)).getFileHandle(name, { create: true })).createWritable();
+      try {
+        await writer.write(dataUrlBytes(dataUrl) as BufferSource);
+        await writer.close();
+      } catch (error) {
+        await writer.abort().catch(() => {});
+        throw error;
+      }
+    },
+    async remove(name) {
+      await (await folder()).removeEntry(name);
+    },
+  };
+}
+const photoFilesOf = (directory: DynastyDirectory) => directory.photoFiles?.() ?? handlePhotoFiles(directory);
+
+/** Keeps the old dynasty.json before its photos are moved out. An existing copy is never replaced. */
+async function backupBeforePhotos(directory: DynastyDirectory, text: string, revision: string) {
+  if (directory.backupDynasty) return directory.backupDynasty(revision);
+  for (let number = 1; ; number++) {
+    const name = number === 1 ? PHOTO_BACKUP_FILE : PHOTO_BACKUP_FILE.replace(".json", ` (${number}).json`);
+    try {
+      if ((await readText(directory, name)) === text) return name;
+      continue;
+    } catch (error) {
+      if (!missing(error)) throw error;
+    }
+    const writer = await (await directory.getFileHandle(name, { create: true })).createWritable();
+    try {
+      await writer.write(text);
+      await writer.close();
+    } catch (error) {
+      await writer.abort().catch(() => {});
+      throw error;
+    }
+    if ((await readText(directory, name)) !== text) throw new Error("BACKUP_FAILED");
+    return name;
+  }
+}
+
 /** Content stays in the selected folder; bookmarks contain only metadata. */
 export class DynastyFolder {
   private queue: Promise<unknown> = Promise.resolve();
   private deleted = false;
   private initialFileCreated = false;
+  private readonly photos: PhotoFiles;
+  /** Our picture files known to be on disk: listed on open or written by this window. */
+  private readonly photoNames = new Set<string>();
   private constructor(
     public readonly directory: DynastyDirectory,
     private revision: string,
     private readonly projectId: string,
     public parent?: DynastyDirectory,
-  ) {}
+  ) {
+    this.photos = photoFilesOf(directory);
+  }
   static async open(
     directory: DynastyDirectory,
     parent?: DynastyDirectory,
   ): Promise<{ folder: DynastyFolder; project: Project }> {
-    const text = await (await directory.getFileHandle(DYNASTY_FILE)).getFile().then((file) => file.text());
-    const project = await readProjectDocument(text);
-    return { folder: new DynastyFolder(directory, await digest(text), project.id, parent), project };
+    const text = await readText(directory, DYNASTY_FILE);
+    const photos = photoFilesOf(directory);
+    const project = await readProjectDocument(text, (name) => photos.read(name));
+    const folder = new DynastyFolder(directory, await digest(text), project.id, parent);
+    for (const name of await photos.list().catch(() => [])) folder.photoNames.add(name);
+    // Older versions kept every photo twice inside dynasty.json. Move them out once, after a backup.
+    if (JSON.parse(text).formatVersion === 1 && hasPhotos(project)) {
+      try {
+        await backupBeforePhotos(directory, text, folder.revision);
+        await folder.save(project);
+      } catch (error) {
+        // The old file stays as it was; the next save tries again.
+        console.warn("Photo migration failed", error);
+      }
+    }
+    return { folder, project };
   }
   static async create(directory: DynastyDirectory, project: Project): Promise<DynastyFolder> {
     // Only dynasty.json belongs to us. Other files may already exist here.
@@ -134,8 +237,14 @@ export class DynastyFolder {
   save(project: Project): Promise<void> {
     return this.enqueue(async () => {
       if (project.id !== this.projectId) throw new Error("FOLDER_PROJECT_MISMATCH");
-      const text = await serializeProject(project);
+      const { text, photos } = await serializeProject(project);
       await this.checkRevision();
+      // Pictures first: dynasty.json never refers to a file that is not written yet.
+      for (const [name, dataUrl] of photos) {
+        if (this.photoNames.has(name)) continue;
+        await this.photos.write(name, dataUrl);
+        this.photoNames.add(name);
+      }
       const file = await this.directory.getFileHandle(DYNASTY_FILE, { create: !this.revision });
       if (!this.revision) this.initialFileCreated = true;
       const writer = await file.createWritable();
@@ -153,7 +262,20 @@ export class DynastyFolder {
         throw error;
       }
       this.revision = await digest(text);
+      await this.removeUnusedPhotos(new Set(photos.keys()));
     });
+  }
+  /** Only our own files that dynasty.json no longer names; a failure leaves them for the next save. */
+  private async removeUnusedPhotos(used: Set<string>) {
+    for (const name of [...this.photoNames]) {
+      if (used.has(name)) continue;
+      try {
+        await this.photos.remove(name);
+        this.photoNames.delete(name);
+      } catch (error) {
+        if (missing(error)) this.photoNames.delete(name);
+      }
+    }
   }
   delete(): Promise<void> {
     return this.enqueue(async () => {

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { DynastyDirectory, RecentFolder } from "./folderStorage";
 import type { FolderBackend } from "./dynastyStore";
+import { photoType, type PhotoFiles } from "./photoFiles";
 
 interface DirectoryInfo {
   path: string;
@@ -45,6 +46,25 @@ export class DesktopDirectory implements DynastyDirectory {
   }
   async deleteDynasty(expected: string) {
     await this.io("deleteDynasty", { expected });
+  }
+  /** Rust accepts only our own file names inside "<dynasty>/photos". */
+  photoFiles(): PhotoFiles {
+    return {
+      list: () => this.io<string[]>("photoList"),
+      read: async (name) => {
+        const data = await this.io<string | null>("photoRead", { name });
+        return data === null ? undefined : `data:${photoType(name)};base64,${data}`;
+      },
+      write: async (name, dataUrl) => {
+        await this.io("photoWrite", { name, base64: dataUrl.slice(dataUrl.indexOf(",") + 1).replace(/\s+/g, "") });
+      },
+      remove: async (name) => {
+        await this.io("photoRemove", { name });
+      },
+    };
+  }
+  backupDynasty(expected: string) {
+    return this.io<string>("backup", { expected });
   }
   async queryPermission(): Promise<PermissionState> {
     return "granted";

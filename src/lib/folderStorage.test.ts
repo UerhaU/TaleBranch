@@ -9,8 +9,8 @@ describe("dynasties in user folders", () => {
     const directory = new MemoryDirectory();
     const project = createDemoProject();
     project.characters[0].stages[0].photo = {
-      original: "data:image/png;base64,original",
-      edited: "data:image/png;base64,edited",
+      original: "data:image/png;base64,b3JpZ2luYWw=",
+      edited: "data:image/png;base64,ZWRpdGVk",
       updatedAt: project.updatedAt,
     };
     project.trashedCharacters.push(project.characters.pop()!);

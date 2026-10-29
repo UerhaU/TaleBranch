@@ -29,6 +29,13 @@ interface Variant {
   exists(folder: string): boolean;
   /** The user's own file next to the dynasties. */
   sibling(): string | undefined;
+  /** A text file inside a dynasty folder. */
+  file(folder: string, name: string): string | undefined;
+  setFile(folder: string, name: string, text: string): void;
+  /** File names in "<dynasty>/photos". */
+  photos(folder: string): string[];
+  /** Puts the user's own file into the photos folder, or removes a picture behind the program's back. */
+  setPhoto(folder: string, name: string, present: boolean): void;
 }
 
 function browserVariant(): Variant {
@@ -48,6 +55,17 @@ function browserVariant(): Variant {
     },
     exists: (folder) => place.directories.has(folder),
     sibling: () => place.files.get("Мои документы.txt"),
+    file: (folder, name) => place.directories.get(folder)?.files.get(name),
+    setFile: (folder, name, text) => place.directories.get(folder)!.files.set(name, text),
+    photos: (folder) => {
+      const photos = place.directories.get(folder)?.directories.get("photos");
+      return photos ? [...photos.files.keys(), ...photos.binary.keys()].sort() : [];
+    },
+    setPhoto: (folder, name, present) => {
+      const photos = place.directories.get(folder)!.directories.get("photos")!;
+      if (present) photos.files.set(name, "Свой файл");
+      else photos.binary.delete(name);
+    },
   };
 }
 function desktopVariant(): Variant {
@@ -67,6 +85,18 @@ function desktopVariant(): Variant {
     },
     exists: (folder) => native.directories.has(`D:\\Династии\\${folder}`),
     sibling: () => native.files.get("D:\\Династии\\Мои документы.txt"),
+    file: (folder, name) => native.files.get(`D:\\Династии\\${folder}\\${name}`),
+    setFile: (folder, name, text) => native.files.set(`D:\\Династии\\${folder}\\${name}`, text),
+    photos: (folder) => {
+      const prefix = `D:\\Династии\\${folder}\\photos\\`;
+      const names = [...native.photos.keys(), ...native.files.keys()].filter((path) => path.startsWith(prefix));
+      return names.map((path) => path.slice(prefix.length)).sort();
+    },
+    setPhoto: (folder, name, present) => {
+      const path = `D:\\Династии\\${folder}\\photos\\${name}`;
+      if (present) native.files.set(path, "Свой файл");
+      else native.photos.delete(path);
+    },
   };
 }
 
@@ -183,6 +213,102 @@ describe.each([
     deleteLegacyProject(old.id);
     expect(listLegacyProjects()).toEqual([]);
     expect(disk.saved(old.name)).toEqual(moved);
+  });
+
+  describe("photos as separate files", () => {
+    const picture = (text: string, type = "png") => `data:image/${type};base64,${btoa(text)}`;
+    const transform = { zoom: 1.5, x: 0.1, y: 0, rotation: 90, flipped: false };
+    const ORIGINAL = "original ".repeat(3000);
+    /** An old dynasty: each photo twice inside dynasty.json, one without crop settings. */
+    const oldDynasty = async () => {
+      const project = createDemoProject();
+      const [first, second] = project.characters;
+      first.stages[0].photo = {
+        original: picture(ORIGINAL),
+        edited: picture("crop without settings", "webp"),
+        updatedAt: project.updatedAt,
+      };
+      second.stages[0].photo = {
+        original: picture(ORIGINAL),
+        edited: picture("crop", "webp"),
+        transform,
+        updatedAt: project.updatedAt,
+      };
+      await create(createEmptyProject(project.name));
+      const text = JSON.stringify({ app: "dynasty-chronicles", formatVersion: 1, project }, null, 2);
+      disk.setFile(project.name, DYNASTY_FILE, text);
+      return { project, text };
+    };
+    const reopen = async (name: string) => {
+      disk.pick(name);
+      return disk.restart().open();
+    };
+
+    it("moves the photos of an old dynasty into files after keeping a copy of the old file", async () => {
+      const { project, text } = await oldDynasty();
+      const opened = await reopen(project.name);
+      const [first, second] = opened.project.characters;
+      expect(first.stages[0].photo).toEqual(project.characters[0].stages[0].photo);
+      expect(second.stages[0].photo).toMatchObject({ original: picture(ORIGINAL), transform });
+      expect(disk.file(project.name, "dynasty.backup-before-photos.json")).toBe(text);
+      const saved = disk.file(project.name, DYNASTY_FILE)!;
+      expect(JSON.parse(saved).formatVersion).toBe(2);
+      expect(saved).not.toContain("data:image");
+      expect(saved.length).toBeLessThan(text.length);
+      // The shared original is stored once; only the crop without settings is kept as a picture.
+      expect(disk.photos(project.name)).toHaveLength(2);
+      expect(disk.photos(project.name).every((name) => /^[0-9a-f]{64}\.(png|webp)$/.test(name))).toBe(true);
+      // A crop with settings is drawn again from the original instead of being stored.
+      const expected = structuredClone(opened.project);
+      delete expected.characters[1].stages[0].photo!.edited;
+      expect((await reopen(project.name)).project).toEqual(expected);
+      expect(disk.file(project.name, DYNASTY_FILE)).toBe(saved);
+    });
+
+    it("removes only its own photo files that nothing refers to any more", async () => {
+      const { project } = await oldDynasty();
+      const opened = await reopen(project.name);
+      disk.setPhoto(project.name, "notes.txt", true);
+      const next = structuredClone(opened.project);
+      delete next.characters[0].stages[0].photo;
+      await opened.dynasty.save(next);
+      expect(disk.photos(project.name)).toEqual([expect.stringMatching(/\.png$/), "notes.txt"]);
+      delete next.characters[1].stages[0].photo;
+      await opened.dynasty.save(next);
+      expect(disk.photos(project.name)).toEqual(["notes.txt"]);
+      expect((await reopen(project.name)).project).toEqual(next);
+    });
+
+    it("writes a new photo as a file and keeps dynasty.json small", async () => {
+      const project = createDemoProject();
+      const dynasty = await create(project);
+      const next = structuredClone(project);
+      const photo = {
+        original: picture("x".repeat(20000)),
+        edited: picture("crop", "webp"),
+        transform,
+        updatedAt: project.updatedAt,
+      };
+      next.characters[0].stages[0].photo = photo;
+      await dynasty.save(next);
+      expect(disk.photos(project.name)).toHaveLength(1);
+      expect(disk.file(project.name, DYNASTY_FILE)!.length).toBeLessThan(20000);
+      expect(disk.file(project.name, "dynasty.backup-before-photos.json")).toBeUndefined();
+      const reopened = (await reopen(project.name)).project.characters[0].stages[0].photo;
+      expect(reopened).toEqual({ original: photo.original, transform, updatedAt: project.updatedAt });
+    });
+
+    it("still opens a dynasty when a photo file was deleted outside the program", async () => {
+      const { project } = await oldDynasty();
+      await reopen(project.name);
+      for (const name of disk.photos(project.name)) disk.setPhoto(project.name, name, false);
+      const opened = await reopen(project.name);
+      const photos = opened.project.characters.flatMap((character) => character.stages.filter((stage) => stage.photo));
+      expect(photos).toEqual([]);
+      expect(opened.project.characters.map((character) => character.id)).toEqual(
+        project.characters.map((character) => character.id),
+      );
+    });
   });
 
   it("exports through the variant's own save mechanism", async () => {
