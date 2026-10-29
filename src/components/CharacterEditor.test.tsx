@@ -110,6 +110,19 @@ function choose(label: string, search: string, result: string) {
 }
 
 describe("catalog-backed character editing", () => {
+  it("explains why a toddler has no goals or careers and lets the user show them for all ages", () => {
+    mount(createCharacter("Малышка", "sim", { lifeStage: "Малыш" }));
+    const hint = "В игре для этого возраста таких значений нет";
+    button("Характеристики");
+    expect(container.textContent).toContain(hint);
+    button("Карьера");
+    expect(container.textContent).toContain(hint);
+    const allAges = Array.from(container.querySelectorAll("label.check-row")).find((label) =>
+      label.textContent?.includes("Показать значения для всех возрастов"),
+    );
+    act(() => allAges!.querySelector("input")!.click());
+    expect(container.textContent).not.toContain(hint);
+  });
   it("offers the human gender choices and preserves older hidden data when saving", () => {
     const character = createCharacter("Проверка", "sim", {
       gender: "Женский",

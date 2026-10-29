@@ -6,6 +6,7 @@
   --tb-font-display: Georgia, "Times New Roman", serif;
   --tb-display-caps: normal;
   --tb-pattern: none;
+  --tb-pattern-size: 64px;
   --tb-card-deco: none;
   --tb-radius-xs: 6px;
   --tb-radius-sm: 10px;
@@ -164,6 +165,7 @@
   --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 20C4 10 10 4 20 4c0 10-6 16-16 16z'/%3E%3C/svg%3E");
   --tb-font-display: Comfortaa, "Trebuchet MS", "Segoe UI", sans-serif;
   --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M16 40c0-8 6-14 14-14-1 8-6 14-14 14zM44 22c4 0 8 3 8 8-4 0-8-3-8-8z' fill='black'/%3E%3C/svg%3E");
+  --tb-pattern-size: 64px;
 }
 [data-theme="garden"][data-mode="dark"] {
   --tb-canvas: #0e1a11;
@@ -249,6 +251,7 @@
   --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z'/%3E%3C/svg%3E");
   --tb-font-display: Philosopher, "Palatino Linotype", "Book Antiqua", Georgia, serif;
   --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cpath d='M18 10l2 6 6 2-6 2-2 6-2-6-6-2 6-2zM52 44l1.5 4.5L58 50l-4.5 1.5L52 56l-1.5-4.5L46 50l4.5-1.5z' fill='black'/%3E%3C/svg%3E");
+  --tb-pattern-size: 72px;
 }
 [data-theme="magic"][data-mode="dark"] {
   --tb-canvas: #120b22;
@@ -335,6 +338,7 @@
   --tb-font-display: "Cormorant SC", "Cormorant", "Palatino Linotype", Georgia, serif;
   --tb-display-caps: small-caps;
   --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='12' cy='14' r='1.4'/%3E%3Ccircle cx='58' cy='30' r='1'/%3E%3Ccircle cx='34' cy='62' r='1.2'/%3E%3Cpath d='M66 58a8 8 0 1 1-6-12 6 6 0 0 0 6 12z'/%3E%3C/svg%3E");
+  --tb-pattern-size: 80px;
 }
 [data-theme="moon"][data-mode="dark"] {
   --tb-canvas: #0a0e1d;
@@ -421,6 +425,7 @@
   --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l10 10-10 10L2 12z'/%3E%3C/svg%3E");
   --tb-font-display: Unbounded, Bahnschrift, "Segoe UI", system-ui, sans-serif;
   --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M0 47.5h48M47.5 0v48' stroke='black' fill='none'/%3E%3C/svg%3E");
+  --tb-pattern-size: 48px;
 }
 [data-theme="city"][data-mode="dark"] {
   --tb-canvas: #0c0c16;
@@ -506,6 +511,7 @@
   --tb-card-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 18h18l-2-10-5 4-2-7-2 7-5-4z'/%3E%3C/svg%3E");
   --tb-font-display: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
   --tb-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M28 8l6 10 10 2-8 7 2 11-10-5-10 5 2-11-8-7 10-2z' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E");
+  --tb-pattern-size: 56px;
 }
 [data-theme="kingdom"][data-mode="dark"] {
   --tb-canvas: #160b10;
@@ -595,9 +601,9 @@ html,
 body,
 #root {
   width: 100%;
-  min-width: 1024px;
+  min-width: 640px;
   height: 100%;
-  min-height: 720px;
+  min-height: 480px;
   margin: 0;
   overflow: hidden;
 }
@@ -675,7 +681,8 @@ kbd {
   background: transparent;
 }
 
-/* Узор темы поверх поля: едва заметный, цвета текста; выключается в настройках */
+/* Узор темы поверх поля: едва заметный, цвета текста; выключается в настройках.
+   Сдвиг и масштаб поля приходят из TreeCanvas, поэтому узор движется вместе с карточками. */
 :root:not([data-theme="default"]):not([data-pattern="off"]) .tb-field::before {
   position: absolute;
   inset: 0;
@@ -685,6 +692,10 @@ kbd {
   pointer-events: none;
   -webkit-mask: var(--tb-pattern) repeat;
   mask: var(--tb-pattern) repeat;
+  -webkit-mask-position: var(--tb-field-x, 0) var(--tb-field-y, 0);
+  mask-position: var(--tb-field-x, 0) var(--tb-field-y, 0);
+  -webkit-mask-size: calc(var(--tb-pattern-size) * var(--tb-field-zoom, 1));
+  mask-size: calc(var(--tb-pattern-size) * var(--tb-field-zoom, 1));
 }
 
 .tb-field .react-flow__background pattern circle {
@@ -2041,6 +2052,19 @@ button.tb-dyn-btn.is-open {
 
   .tb-app.has-inspector .tb-dyn-btn {
     max-width: 150px;
+  }
+}
+
+/* Маленькое окно (уже 1024 px): правая панель ложится поверх поля и верхних кнопок, а не сжимает их.
+   Закрыли панель — всё снова на месте */
+@media (max-width: 1023px) {
+  .tb-app.has-inspector {
+    --tb-rx: 0px;
+  }
+
+  .tb-app.has-inspector .tb-inspector {
+    z-index: 40;
+    width: min(var(--tb-panel-width), calc((100% - 32px) / var(--tb-ui-zoom, 1)));
   }
 }
 

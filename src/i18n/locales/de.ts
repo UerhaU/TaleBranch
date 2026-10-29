@@ -71,6 +71,8 @@ export const deExtra: Record<string, string> = {
   profileSections: "Profilbereiche",
   skillsAndPreferences: "Fähigkeiten und Vorlieben",
   showAllAges: "Werte für alle Altersstufen anzeigen",
+  catalogNoneForAge:
+    "Im Spiel gibt es für dieses Alter keine solchen Werte. Aktiviere „Werte für alle Altersstufen anzeigen“, um einen beliebigen zu wählen, oder gib einen eigenen ein.",
   catalogRulesHint:
     "Die Auswahl richtet sich nach der Tierart und dem aktuellen Alter. Vorhandene und eigene Werte bleiben bei einem Alterswechsel erhalten.",
   conflictingTraits: "Im Spiel unvereinbar",

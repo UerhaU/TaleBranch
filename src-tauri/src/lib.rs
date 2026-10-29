@@ -1,9 +1,11 @@
 mod custom_styles;
 mod desktop_storage;
+mod window_state;
 use custom_styles::{CustomStyles, StyleList};
 use desktop_storage::{Directory, Recent, Request, Storage, StorageError};
 use std::{path::PathBuf, sync::Arc};
 use tauri_plugin_dialog::DialogExt;
+use window_state::{Area, WindowMemory};
 
 fn portable_data() -> std::io::Result<PathBuf> {
     let executable = std::env::current_exe()?;
@@ -212,24 +214,72 @@ fn custom_style_read(
     styles.read(&kind, &file)
 }
 
+/// Puts the main window where it was closed last time, on a screen that is still connected.
+fn restore_window(window: &tauri::WebviewWindow, memory: &WindowMemory) -> tauri::Result<()> {
+    let Some(saved) = memory.saved() else {
+        return Ok(());
+    };
+    let screens: Vec<Area> = window
+        .available_monitors()?
+        .iter()
+        .map(|monitor| Area {
+            x: monitor.position().x,
+            y: monitor.position().y,
+            width: monitor.size().width,
+            height: monitor.size().height,
+        })
+        .collect();
+    let state = window_state::fit_to_screens(saved, &screens);
+    window.set_size(tauri::PhysicalSize::new(state.width, state.height))?;
+    window.set_position(tauri::PhysicalPosition::new(state.x, state.y))?;
+    if state.maximized {
+        window.maximize()?;
+    }
+    Ok(())
+}
+
+/// Keeps the last normal size and place; a maximized or minimized window does not change them.
+fn remember_window(window: &tauri::WebviewWindow, memory: &WindowMemory) {
+    if window.is_maximized().unwrap_or(true) || window.is_minimized().unwrap_or(true) {
+        return;
+    }
+    if let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) {
+        memory.normal(position.x, position.y, size.width, size.height);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let data = portable_data().expect("Could not locate the portable application directory");
     let storage =
         Arc::new(Storage::new(&data).expect("Could not create TaleBranch-data beside the portable application"));
     let open_dynasties = storage.clone();
+    let memory = Arc::new(WindowMemory::new(&data));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(storage)
         .manage(CustomStyles::new(&data))
         .setup(move |app| {
-            tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+            let window = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
                 .title("TaleBranch")
                 .inner_size(1440.0, 900.0)
-                .min_inner_size(1024.0, 720.0)
+                .min_inner_size(640.0, 480.0)
                 .center()
+                .visible(false)
                 .data_directory(data.join("webview"))
                 .build()?;
+            // A failed restore keeps the default size in the middle of the screen.
+            let _ = restore_window(&window, &memory);
+            window.show()?;
+            let watched = window.clone();
+            let memory = memory.clone();
+            window.on_window_event(move |event| match event {
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => remember_window(&watched, &memory),
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    let _ = memory.save(watched.is_maximized().unwrap_or(false));
+                }
+                _ => {}
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

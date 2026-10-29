@@ -71,6 +71,8 @@ export const esExtra: Record<string, string> = {
   profileSections: "Secciones del perfil",
   skillsAndPreferences: "Habilidades y preferencias",
   showAllAges: "Mostrar valores para todas las edades",
+  catalogNoneForAge:
+    "El juego no tiene estos valores para esta edad. Marca «Mostrar valores para todas las edades» para elegir cualquiera o escribe uno propio.",
   catalogRulesHint:
     "Las opciones dependen de la especie y la edad actual. Los valores existentes y personalizados se conservan al cambiar de edad.",
   conflictingTraits: "Incompatibles en el juego",

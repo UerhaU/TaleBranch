@@ -1,10 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type RefObject,
+} from "react";
 import {
   Background,
   BackgroundVariant,
   ReactFlow,
   ReactFlowProvider,
   applyNodeChanges,
+  useStore,
   type AriaLabelConfig,
   type Edge,
   type Node,
@@ -33,8 +43,25 @@ type QuickDrag = { from: Point; to: Point };
 
 /** Room for «Show all» so the cards do not end up under the floating panels. */
 export function fitPadding() {
-  const inspector = document.querySelector(".tb-inspector")?.getBoundingClientRect().width ?? 0;
+  // In a window narrower than 1024 px the panel lies over the field (styles.css); the cards are not kept beside it.
+  const overlay = window.matchMedia?.("(max-width: 1023px)").matches;
+  const inspector = overlay ? 0 : (document.querySelector(".tb-inspector")?.getBoundingClientRect().width ?? 0);
   return { top: "96px", bottom: "120px", left: "32px", right: `${inspector ? inspector + 48 : 32}px` } as const;
+}
+
+/**
+ * The theme pattern (stars, cells, leaves) is drawn by `.tb-field::before`. It takes the field's shift and zoom,
+ * so it moves together with the cards and the dots instead of staying in place.
+ */
+function PatternFollower({ field }: { field: RefObject<HTMLDivElement | null> }) {
+  const [x, y, zoom] = useStore((state) => state.transform);
+  useLayoutEffect(() => {
+    const style = field.current?.style;
+    style?.setProperty("--tb-field-x", `${x}px`);
+    style?.setProperty("--tb-field-y", `${y}px`);
+    style?.setProperty("--tb-field-zoom", String(zoom));
+  }, [field, x, y, zoom]);
+  return null;
 }
 
 /** The tree field across the whole window: cards, lines, right-click menus, the map island and the empty state. */
@@ -69,6 +96,7 @@ export function TreeCanvas({
   const [menu, setMenu] = useState<MenuState>();
   const [drag, setDrag] = useState<QuickDrag>();
   const dragged = useRef(false);
+  const field = useRef<HTMLDivElement>(null);
   const menuCharacter = menu?.kind === "person" ? project.characters.find((item) => item.id === menu.id) : undefined;
 
   const quick = useMemo(() => {
@@ -137,7 +165,7 @@ export function TreeCanvas({
   return (
     <ReactFlowProvider>
       <QuickLinkContext.Provider value={quick}>
-        <div className="tb-field tb-canvas flow-wrap">
+        <div className="tb-field tb-canvas flow-wrap" ref={field}>
           <ReactFlow
             nodes={localNodes}
             edges={view.edges}
@@ -179,6 +207,7 @@ export function TreeCanvas({
             deleteKeyCode={null}
           >
             <Background variant={BackgroundVariant.Dots} gap={22} size={2.6} />
+            <PatternFollower field={field} />
           </ReactFlow>
         </div>
       </QuickLinkContext.Provider>

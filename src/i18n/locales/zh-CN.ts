@@ -65,6 +65,7 @@ export const zhCNExtra: Record<string, string> = {
   profileSections: "档案栏目",
   skillsAndPreferences: "技能与偏好",
   showAllAges: "显示所有年龄的选项",
+  catalogNoneForAge: "游戏中这个年龄没有这类选项。勾选“显示所有年龄的选项”即可任选，或填写自定义内容。",
   catalogRulesHint: "选项会根据物种和当前年龄进行筛选。更改年龄时，已有值和自定义值将被保留。",
   conflictingTraits: "在游戏中互不兼容",
   storyChoiceAllowed: "你仍可以为自己的故事保留这些选项",

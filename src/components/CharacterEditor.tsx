@@ -449,6 +449,9 @@ function CharacterEditorForm({
                 onCustomChange={(customAspiration) => setCatalog({ customAspiration })}
               />
             )}
+            {draft.type !== "pet" && !options("aspirations").length && (
+              <p className="section-hint">{t("catalogNoneForAge")}</p>
+            )}
             <CatalogPicker
               label={t("occultType")}
               kind="occults"
@@ -581,7 +584,12 @@ function CharacterEditorForm({
         )}
         {tab === "career" && (
           <div className="catalog-form-stack">
+            <label className="check-row">
+              <input type="checkbox" checked={allAges} onChange={(event) => setAllAges(event.target.checked)} />
+              {t("showAllAges")}
+            </label>
             <p className="section-hint">{t("careerHint")}</p>
+            {!options("careers").length && <p className="section-hint">{t("catalogNoneForAge")}</p>}
             {settings.careers.map((period, index) => (
               <section className="career-period" key={period.id}>
                 <div className="section-heading">

@@ -53,7 +53,7 @@ npm run dev
 
 Откройте `http://localhost:1420`. Для настольной разработки дополнительно нужны Rust и зависимости Tauri 2. Проверки: `npm test`, `npx tsc -b`; нативное хранение: `cargo test --manifest-path src-tauri/Cargo.toml --lib`.
 
-Команда сборки portable — `npm run build:portable`. Игровые иконки из локального набора не включены в Git. Для сборки чистого клона с заменяющими значками используйте `powershell -File scripts/build-portable.ps1 -AllowMissingIcons`. Текстовые справочники входят в исходники; Access для запуска не требуется. Минимальный размер окна — 1024 × 720.
+Команда сборки portable — `npm run build:portable`. Игровые иконки из локального набора не включены в Git. Для сборки чистого клона с заменяющими значками используйте `powershell -File scripts/build-portable.ps1 -AllowMissingIcons`. Текстовые справочники входят в исходники; Access для запуска не требуется. Минимальный размер окна — 640 × 480.
 
 ### Обратная связь и документы
 

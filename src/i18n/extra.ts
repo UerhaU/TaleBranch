@@ -100,6 +100,8 @@ export const extraMessages: Record<string, Record<string, string>> = {
     profileSections: "Разделы карточки",
     skillsAndPreferences: "Навыки и предпочтения",
     showAllAges: "Показать значения для всех возрастов",
+    catalogNoneForAge:
+      "В игре для этого возраста таких значений нет. Отметьте «Показать значения для всех возрастов», чтобы выбрать любое, или впишите своё.",
     catalogRulesHint:
       "Списки учитывают вид и текущий возраст. Уже добавленные значения и свои записи сохраняются при смене возраста.",
     conflictingTraits: "Несовместимы в игре",
@@ -264,6 +266,8 @@ export const extraMessages: Record<string, Record<string, string>> = {
     profileSections: "Profile sections",
     skillsAndPreferences: "Skills and preferences",
     showAllAges: "Show values for all ages",
+    catalogNoneForAge:
+      "The game has no such values for this age. Tick «Show values for all ages» to choose any of them, or type your own.",
     catalogRulesHint:
       "Choices follow the species and current age. Existing and custom values remain when the age changes.",
     conflictingTraits: "Conflicting in game",

@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { emptyCharacterCatalog } from "./catalog";
+import { describe, expect, it, vi } from "vitest";
+import { emptyCharacterCatalog, prepareCatalogDraft } from "./catalog";
+import { storeLegacyProject } from "./dynastyStore.testSupport";
+import { loadLegacyProject } from "./legacyStorage";
 import { createCharacter, createEmptyProject } from "./project";
 import { importProject, readProjectDocument, serializeProject } from "./storage";
 import { parseProject } from "./validation";
@@ -114,5 +116,90 @@ describe("старые поля персонажа (этап 14)", () => {
     expect(raw.formatVersion).toBe(1);
     expect(raw.project.formatVersion).toBe(1);
     expect(raw.project.characters[0].catalog.version).toBe(1);
+  });
+});
+
+/** A character as v0.1.0-beta.1 wrote it: chosen goal and careers in `catalog`, old text fields empty. */
+function betaProject() {
+  const project = legacyProject(
+    { aspiration: "", traits: [], preferences: [], skills: [], occultType: "", deathCause: "" },
+    {
+      version: 1,
+      traitIds: ["trait_PracticeMakesPerfect"],
+      aspirationId: "Track_Knowledge_Academic",
+      occultIds: [],
+      breedId: "",
+      customBreed: "",
+      neutered: "unknown",
+      deathCauseId: "",
+      skills: [],
+      preferences: [],
+      careers: [
+        {
+          id: "career_1",
+          careerId: "careers_Adult_Gardener",
+          customName: "",
+          branch: "",
+          title: "",
+          level: 6,
+          start: "",
+          end: "",
+          current: true,
+          notes: "Розы",
+        },
+        {
+          id: "career_2",
+          careerId: "",
+          customName: "Своя работа",
+          branch: "",
+          title: "",
+          start: "",
+          end: "",
+          current: false,
+          notes: "",
+        },
+      ],
+    },
+  );
+  return project;
+}
+
+describe("цели и карьера из старых версий", () => {
+  it("файл беты v0.1.0-beta.1: цель и карьера остаются после импорта и сохранения", async () => {
+    const imported = await importProject(new File([oldDocument(betaProject())], "Varonzov.dynasty-tree"), "копия");
+    const catalog = imported.characters[0].catalog!;
+    expect(catalog.aspirationId).toBe("Track_Knowledge_Academic");
+    expect(catalog.careers).toEqual([
+      expect.objectContaining({ careerId: "careers_Adult_Gardener", level: 6, current: true, notes: "Розы" }),
+      expect.objectContaining({ careerId: "", customName: "Своя работа", current: false }),
+    ]);
+    const reopened = await readProjectDocument((await serializeProject(imported)).text);
+    expect(reopened.characters[0].catalog).toEqual(catalog);
+  });
+
+  it("старая запись браузера: цель и карьера переносятся вместе с династией", () => {
+    const records = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => records.get(key) ?? null,
+      setItem: (key: string, value: string) => records.set(key, value),
+    });
+    const project = betaProject();
+    storeLegacyProject(project);
+    const loaded = loadLegacyProject(project.id)!;
+    expect(loaded.characters[0].catalog?.aspirationId).toBe("Track_Knowledge_Academic");
+    expect(loaded.characters[0].catalog?.careers.map((period) => period.careerId)).toEqual([
+      "careers_Adult_Gardener",
+      "",
+    ]);
+    vi.unstubAllGlobals();
+  });
+
+  it("файл альфы: цель была только текстом и не пропадает", async () => {
+    const project = legacyProject({ aspiration: "Академик", traits: [], skills: [], preferences: [] });
+    const imported = await importProject(new File([oldDocument(project)], "alpha.dynasty-tree"), "копия");
+    const character = imported.characters[0];
+    expect(character.catalog?.customAspiration).toBe("Академик");
+    // The editor turns an exact catalog name into the catalog value.
+    expect(prepareCatalogDraft(character).catalog?.aspirationId).toBe("Track_Knowledge_Academic");
   });
 });

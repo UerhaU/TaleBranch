@@ -71,6 +71,8 @@ export const ptBRExtra: Record<string, string> = {
   profileSections: "Seções do perfil",
   skillsAndPreferences: "Habilidades e preferências",
   showAllAges: "Mostrar valores para todas as idades",
+  catalogNoneForAge:
+    "O jogo não tem esses valores para esta idade. Marque «Mostrar valores para todas as idades» para escolher qualquer um ou digite o seu.",
   catalogRulesHint:
     "As opções seguem a espécie e a idade atual. Os valores existentes e personalizados são mantidos ao mudar a idade.",
   conflictingTraits: "Incompatíveis no jogo",
