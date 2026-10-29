@@ -1,5 +1,14 @@
 import type { Project } from "../types";
-import { DynastyFolder, grantDirectory, type DynastyDirectory, type RecentFolder } from "./folderStorage";
+import type { DynastyVersion } from "./dynastyProtection";
+import {
+  DynastyFolder,
+  FolderDamagedError,
+  grantDirectory,
+  type DynastyDirectory,
+  type RecentFolder,
+} from "./folderStorage";
+
+export type { DynastyVersion } from "./dynastyProtection";
 
 /** A place chosen by the user; a new dynasty gets its own folder inside it. */
 export interface DynastyPlace {
@@ -14,6 +23,23 @@ export interface Dynasty {
   save(project: Project): Promise<void>;
   /** Removes the whole dynasty folder and forgets it. */
   delete(): Promise<void>;
+  /** Saved copies of dynasty.json, newest first. */
+  versions(): Promise<DynastyVersion[]>;
+  /** Replaces the dynasty with a saved copy; the current state becomes a version too. */
+  restore(version: DynastyVersion): Promise<Project>;
+  /** The dynasty is no longer shown here: other windows may open it. */
+  close(): Promise<void>;
+}
+/** dynasty.json is unreadable or missing, and saved copies can replace it. */
+export class DamagedDynastyError extends Error {
+  name = "DamagedDynastyError";
+  constructor(
+    /** Newest first; empty when no copy is readable. */
+    readonly versions: DynastyVersion[],
+    readonly restore: (version: DynastyVersion) => Promise<OpenedDynasty>,
+  ) {
+    super("DYNASTY_DAMAGED");
+  }
 }
 export interface RecentDynasty {
   readonly id: string;
@@ -87,6 +113,17 @@ class FolderDynasty implements Dynasty {
     await this.backend.remember(this.folder, this.name);
     this.remembered = true;
   }
+  versions() {
+    return this.folder.listVersions();
+  }
+  async restore(version: DynastyVersion) {
+    const project = await this.folder.restoreVersion(version.name);
+    this.name = project.name;
+    return project;
+  }
+  close() {
+    return this.folder.close();
+  }
   async delete() {
     await this.folder.delete();
     this.remembered = false;
@@ -101,6 +138,19 @@ export function createFolderStore(backend: FolderBackend): DynastyStore {
     dynasty: new FolderDynasty(folder, backend, project.name),
     project,
   });
+  /** Opens a folder; an unreadable dynasty.json comes back with a way to restore a copy. */
+  const openFolder = async (directory: DynastyDirectory, parent?: DynastyDirectory) => {
+    try {
+      const { folder, project } = await DynastyFolder.open(directory, parent);
+      return opened(folder, project);
+    } catch (error) {
+      if (!(error instanceof FolderDamagedError)) throw error;
+      throw new DamagedDynastyError(error.versions, async (version) => {
+        const { folder, project } = await DynastyFolder.restoreDamaged(directory, version.name, parent);
+        return opened(folder, project);
+      });
+    }
+  };
   // Deleting a folder in a browser needs its parent, which is saved when the dynasty is created.
   const parentOf = async (directory: DynastyDirectory) => {
     for (const item of await backend.recent().catch(() => [])) {
@@ -131,15 +181,13 @@ export function createFolderStore(backend: FolderBackend): DynastyStore {
         directory = await backend.pick();
         parent = await parentOf(directory);
       }
-      const { folder, project } = await DynastyFolder.open(directory, parent);
-      return opened(folder, project);
+      return openFolder(directory, parent);
     },
     async restoreLast() {
       const entry = await backend.last();
       // Startup never opens a permission dialog; a browser may need a click first.
       if (!entry || (await entry.directory.queryPermission({ mode: "readwrite" })) !== "granted") return;
-      const { folder, project } = await DynastyFolder.open(entry.directory, entry.parent);
-      return opened(folder, project);
+      return openFolder(entry.directory, entry.parent);
     },
     async recent() {
       return (await backend.recent()).map((folder): RecentEntry => ({

@@ -10,7 +10,7 @@ import {
   validPetOwnerIds,
 } from "../lib/relationships";
 import { recordStorageFailure, type StorageFailure } from "../lib/storageDiagnostics";
-import type { Dynasty } from "../lib/dynastyStore";
+import type { Dynasty, DynastyVersion } from "../lib/dynastyStore";
 import { useDynastyStore } from "./useDynastyStore";
 
 export type SaveStatus = "saved" | "saving" | "error";
@@ -28,6 +28,8 @@ export function useProject() {
   // The last dynasty is being restored on startup.
   const [busy, setBusy] = useState(true);
   const [startupError, setStartupError] = useState(false);
+  /** Why the last dynasty could not be restored on startup. */
+  const [startupFailure, setStartupFailure] = useState<unknown>();
   const transitioning = useRef(false);
   const destructive = useRef(false);
 
@@ -139,6 +141,9 @@ export function useProject() {
       setBusy(true);
       try {
         if (!(await forceSave())) return false;
+        const previous = dynastyRef.current;
+        // Other windows may open the previous dynasty now.
+        if (previous && previous !== dynasty) void previous.close().catch(() => {});
         dynastyRef.current = dynasty;
         setFolderName(dynasty.folderName);
         current.current = next;
@@ -164,8 +169,11 @@ export function useProject() {
       try {
         const last = await store.restoreLast();
         if (last && !cancelled) await openFolder(last.dynasty, last.project);
-      } catch {
-        if (!cancelled) setStartupError(true);
+      } catch (error) {
+        if (!cancelled) {
+          setStartupError(true);
+          setStartupFailure(error);
+        }
       } finally {
         if (!cancelled) setBusy(false);
       }
@@ -177,6 +185,7 @@ export function useProject() {
 
   const showNothing = useCallback(() => {
     window.clearTimeout(saveTimer.current);
+    void dynastyRef.current?.close().catch(() => {});
     dynastyRef.current = undefined;
     setFolderName(undefined);
     active.current = false;
@@ -260,6 +269,27 @@ export function useProject() {
         showNothing();
       }),
     [irreversibly, showNothing],
+  );
+
+  const listVersions = useCallback(
+    (): Promise<DynastyVersion[]> => dynastyRef.current?.versions() ?? Promise.resolve([]),
+    [],
+  );
+  /** Replaces the dynasty with a saved copy after the pending changes are written. */
+  const restoreVersion = useCallback(
+    async (version: DynastyVersion): Promise<boolean> => {
+      if (!(await forceSave())) return false;
+      return irreversibly("restore", async (dynasty) => {
+        const next = await dynasty.restore(version);
+        current.current = next;
+        lastSaved.current = next;
+        setSaveStatus("saved");
+        setSaveError(undefined);
+        // Undo must not bring back the replaced state; it is kept as a saved version instead.
+        setHistory({ past: [], present: next, future: [] });
+      });
+    },
+    [forceSave, irreversibly],
   );
 
   const undo = useCallback(() => {
@@ -426,6 +456,7 @@ export function useProject() {
       folderName,
       busy,
       startupError,
+      startupFailure,
       openFolder,
       closeFolder,
       closeGuardError,
@@ -443,6 +474,8 @@ export function useProject() {
       restoreCharacter,
       permanentlyDeleteCharacters,
       deleteProject,
+      listVersions,
+      restoreVersion,
       addParentLink,
       addPairLink,
       removeLink,
@@ -455,6 +488,7 @@ export function useProject() {
       folderName,
       busy,
       startupError,
+      startupFailure,
       openFolder,
       closeFolder,
       closeGuardError,
@@ -472,6 +506,8 @@ export function useProject() {
       restoreCharacter,
       permanentlyDeleteCharacters,
       deleteProject,
+      listVersions,
+      restoreVersion,
       addParentLink,
       addPairLink,
       removeLink,

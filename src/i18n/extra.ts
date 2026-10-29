@@ -6,6 +6,7 @@ import { zhCNExtra } from "./locales/zh-CN";
 import { srExtra } from "./locales/sr";
 import { koiExtra } from "./locales/koi";
 import { folderMessages } from "./folders";
+import { protectionMessages } from "./protection";
 import { shellMessages } from "./shell";
 import { panelMessages } from "./panel";
 
@@ -347,6 +348,7 @@ export const extraMessages: Record<string, Record<string, string>> = {
 };
 
 for (const [locale, messages] of Object.entries(folderMessages)) Object.assign(extraMessages[locale], messages);
+for (const [locale, messages] of Object.entries(protectionMessages)) Object.assign(extraMessages[locale], messages);
 for (const [locale, messages] of Object.entries(shellMessages)) Object.assign(extraMessages[locale], messages);
 for (const [locale, messages] of Object.entries(panelMessages)) Object.assign(extraMessages[locale], messages);
 

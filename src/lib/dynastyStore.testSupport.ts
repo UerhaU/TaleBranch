@@ -37,6 +37,12 @@ export class FakeNative {
   files = new Map<string, string>();
   /** "<dynasty>\\photos\\<name>" → base64, as Rust reads and writes them. */
   photos = new Map<string, string>();
+  /** "<dynasty>\\backups\\<name>" → text. */
+  versions = new Map<string, string>();
+  /** Dynasty path → the process that marked it as open. */
+  markers = new Map<string, string>();
+  /** This process in open markers; another FakeNative over the same disk is another copy of the program. */
+  owner = "this-process";
   recent: Recent[] = [];
   last: Recent | null = null;
   exports: Array<{ name: string; contents: string; png: boolean }> = [];
@@ -115,16 +121,44 @@ export class FakeNative {
         return Promise.resolve(null);
       case "backup": {
         if (revision() !== request.expected) return fail("Error", "FOLDER_CONFLICT");
-        const name = "dynasty.backup-before-photos.json";
+        const name = (request as { damaged?: boolean }).damaged
+          ? "dynasty.damaged.json"
+          : "dynasty.backup-before-photos.json";
         this.files.set(`${directory}\\${name}`, this.files.get(file)!);
         return Promise.resolve(name);
       }
+      case "versionList": {
+        const prefix = `${directory}\\backups\\`;
+        const names = [...this.versions.keys()].filter((path) => path.startsWith(prefix));
+        return Promise.resolve(names.map((path) => path.slice(prefix.length)));
+      }
+      case "versionRead":
+        return Promise.resolve(this.versions.get(`${directory}\\backups\\${request.name}`) ?? null);
+      case "versionWrite":
+        if (this.failWrite) return fail("QuotaExceededError", "Disk full");
+        this.directories.add(`${directory}\\backups`);
+        this.versions.set(`${directory}\\backups\\${request.name}`, request.contents);
+        return Promise.resolve(null);
+      case "versionRemove":
+        this.versions.delete(`${directory}\\backups\\${request.name}`);
+        return Promise.resolve(null);
+      case "openClaim": {
+        const owner = this.markers.get(directory);
+        if (owner && owner !== this.owner) return fail("Error", "DYNASTY_OPEN_ELSEWHERE");
+        this.markers.set(directory, this.owner);
+        return Promise.resolve(null);
+      }
+      case "openRelease":
+        if (this.markers.get(directory) === this.owner) this.markers.delete(directory);
+        return Promise.resolve(null);
       case "deleteDynasty": {
         if (revision() !== request.expected) return fail("Error", "FOLDER_CONFLICT");
         const inside = (path: string) => path === directory || path.startsWith(`${directory}\\`);
         for (const path of [...this.directories]) if (inside(path)) this.directories.delete(path);
         for (const path of [...this.files.keys()]) if (inside(path)) this.files.delete(path);
         for (const path of [...this.photos.keys()]) if (inside(path)) this.photos.delete(path);
+        for (const path of [...this.versions.keys()]) if (inside(path)) this.versions.delete(path);
+        this.markers.delete(directory);
         return Promise.resolve(null);
       }
     }

@@ -1,4 +1,4 @@
-import { ChevronDown, Download, FolderOpen, ImageDown, Plus, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, Download, FolderOpen, History, ImageDown, Plus, Trash2, Upload, X } from "lucide-react";
 import { TreeIcon } from "../TreeIcon";
 import { useI18n } from "../../i18n";
 import type { Dialogs } from "../../hooks/useDialogs";
@@ -102,6 +102,10 @@ export function DynastyMenu({
       >
         <ImageDown size={18} />
         <span>{t("exportPng")}</span>
+      </button>
+      <button className="tb-menu-item" onClick={() => void files.showVersions()}>
+        <History size={18} />
+        <span>{t("dynastyVersions")}</span>
       </button>
       <button
         className="tb-menu-item"

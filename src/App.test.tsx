@@ -10,6 +10,7 @@ import type { Project } from "./types";
 import type { Edge } from "@xyflow/react";
 import { webcrypto } from "node:crypto";
 import { DynastyFolder, DYNASTY_FILE } from "./lib/folderStorage";
+import { OPEN_MARKER } from "./lib/dynastyProtection";
 import { DynastyStoreContext } from "./hooks/useDynastyStore";
 import { browserTestStore, memoryBookmarks, storeLegacyProject } from "./lib/dynastyStore.testSupport";
 import { listLegacyProjects, loadLegacyProject } from "./lib/legacyStorage";
@@ -371,8 +372,47 @@ describe("dynasty and trash deletion in the interface", () => {
       );
     });
     expect((await DynastyFolder.open(directory)).project.name).toBe("Новое название");
-    expect([...directory.files.keys()]).toEqual([DYNASTY_FILE]);
+    expect([...directory.files.keys()].filter((name) => name !== OPEN_MARKER)).toEqual([DYNASTY_FILE]);
     expect(listLegacyProjects()).toEqual([]);
+  });
+
+  it("offers the last good version for a damaged dynasty file and opens it after restoring", async () => {
+    const directory = new MemoryDirectory();
+    const project = createDemoProject();
+    await (await DynastyFolder.create(directory, project)).close();
+    directory.files.set(DYNASTY_FILE, "{ damaged");
+    vi.stubGlobal(
+      "showDirectoryPicker",
+      vi.fn(async () => directory),
+    );
+    await show();
+    click("Открыть папку династии");
+    await settle(() => expect(dialog()?.getAttribute("aria-label")).toBe("Файл династии повреждён"));
+    expect(dialog().textContent).toContain("dynasty.damaged.json");
+    click("Восстановить", dialog());
+    await settle(() => expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name));
+    expect(dialog()).toBeUndefined();
+    expect(directory.files.get("dynasty.damaged.json")).toBe("{ damaged");
+    expect(JSON.parse(directory.files.get(DYNASTY_FILE)!).project).toEqual(project);
+  });
+
+  it("explains that a dynasty is open in another window instead of opening it", async () => {
+    const directory = new MemoryDirectory();
+    const project = createDemoProject();
+    await (await DynastyFolder.create(directory, project)).close();
+    const marker = { app: "talebranch", owner: "desktop-2", session: "desktop-2", updatedAt: Date.now() };
+    directory.files.set(OPEN_MARKER, JSON.stringify(marker));
+    vi.stubGlobal(
+      "showDirectoryPicker",
+      vi.fn(async () => directory),
+    );
+    await show();
+    click("Открыть папку династии");
+    await settle(() =>
+      expect(container.querySelector(".folder-error")?.textContent).toContain("уже открыта в другом окне"),
+    );
+    expect(container.querySelector(".dynasty-welcome")).not.toBeNull();
+    expect(JSON.parse(directory.files.get(OPEN_MARKER)!).owner).toBe("desktop-2");
   });
 
   it("cancels folder selection without creating a dynasty or falling back to browser storage", async () => {

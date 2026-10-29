@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { DynastyDirectory, RecentFolder } from "./folderStorage";
 import type { FolderBackend } from "./dynastyStore";
 import { photoType, type PhotoFiles } from "./photoFiles";
+import type { OpenMarker, VersionFiles } from "./dynastyProtection";
 
 interface DirectoryInfo {
   path: string;
@@ -63,8 +64,34 @@ export class DesktopDirectory implements DynastyDirectory {
       },
     };
   }
-  backupDynasty(expected: string) {
-    return this.io<string>("backup", { expected });
+  backupDynasty(expected: string, damaged = false) {
+    return this.io<string>("backup", { expected, damaged });
+  }
+  /** Rust accepts only version names inside "<dynasty>/backups" and only valid documents. */
+  versionFiles(): VersionFiles {
+    return {
+      list: () => this.io<string[]>("versionList"),
+      read: async (name) => (await this.io<string | null>("versionRead", { name })) ?? undefined,
+      write: async (name, text) => {
+        await this.io("versionWrite", { name, contents: text });
+      },
+      remove: async (name) => {
+        await this.io("versionRemove", { name });
+      },
+    };
+  }
+  /** The marker belongs to this process; Rust also removes it when the program exits. */
+  openMarker(): OpenMarker {
+    const claim = async () => {
+      await this.io("openClaim");
+    };
+    return {
+      claim,
+      refresh: claim,
+      release: async () => {
+        await this.io("openRelease");
+      },
+    };
   }
   async queryPermission(): Promise<PermissionState> {
     return "granted";

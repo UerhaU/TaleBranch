@@ -4,9 +4,10 @@ import { webcrypto } from "node:crypto";
 import { createDemoProject, createEmptyProject } from "./project";
 import { MemoryDirectory } from "./folderStorage.testSupport";
 import { browserTestStore, FakeNative, memoryBookmarks, storeLegacyProject } from "./dynastyStore.testSupport";
-import { createFolderStore, type DynastyStore } from "./dynastyStore";
+import { createFolderStore, DamagedDynastyError, type DynastyStore } from "./dynastyStore";
 import { desktopBackend } from "./desktopStorage";
-import { DYNASTY_FILE } from "./folderStorage";
+import { DAMAGED_FILE, DYNASTY_FILE } from "./folderStorage";
+import { KEEP_VERSIONS, OPEN_MARKER, VERSION_INTERVAL } from "./dynastyProtection";
 import { deleteLegacyProject, listLegacyProjects, loadLegacyProject } from "./legacyStorage";
 import type { Project } from "../types";
 
@@ -36,6 +37,10 @@ interface Variant {
   photos(folder: string): string[];
   /** Puts the user's own file into the photos folder, or removes a picture behind the program's back. */
   setPhoto(folder: string, name: string, present: boolean): void;
+  /** Saved copies in "<dynasty>/backups": name → text. */
+  versions(folder: string): Map<string, string>;
+  /** Another window or copy of the program opens the dynasty. */
+  occupy(folder: string): void;
 }
 
 function browserVariant(): Variant {
@@ -65,6 +70,11 @@ function browserVariant(): Variant {
       const photos = place.directories.get(folder)!.directories.get("photos")!;
       if (present) photos.files.set(name, "Свой файл");
       else photos.binary.delete(name);
+    },
+    versions: (folder) => new Map(place.directories.get(folder)?.directories.get("backups")?.files ?? []),
+    occupy: (folder) => {
+      const marker = { app: "talebranch", owner: "browser_other", session: "open_other", updatedAt: Date.now() };
+      place.directories.get(folder)!.files.set(OPEN_MARKER, JSON.stringify(marker));
     },
   };
 }
@@ -96,6 +106,14 @@ function desktopVariant(): Variant {
       const path = `D:\\Династии\\${folder}\\photos\\${name}`;
       if (present) native.files.set(path, "Свой файл");
       else native.photos.delete(path);
+    },
+    versions: (folder) => {
+      const prefix = `D:\\Династии\\${folder}\\backups\\`;
+      const found = [...native.versions].filter(([path]) => path.startsWith(prefix));
+      return new Map(found.map(([path, text]) => [path.slice(prefix.length), text]));
+    },
+    occupy: (folder) => {
+      native.markers.set(`D:\\Династии\\${folder}`, "another-process");
     },
   };
 }
@@ -309,6 +327,92 @@ describe.each([
         project.characters.map((character) => character.id),
       );
     });
+  });
+
+  it("keeps at most one version per interval and only the latest ones, without photos", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-29T12:00:00Z"));
+      const project = createDemoProject();
+      const dynasty = await create(project);
+      expect(disk.versions(project.name).size).toBe(1);
+      // Typing a minute later does not make another copy.
+      vi.setSystemTime(new Date("2026-10-29T12:01:00Z"));
+      await dynasty.save({ ...project, description: "Минуту спустя" });
+      expect(disk.versions(project.name).size).toBe(1);
+      for (let step = 1; step <= KEEP_VERSIONS + 2; step++) {
+        vi.setSystemTime(Date.now() + VERSION_INTERVAL);
+        await dynasty.save({ ...project, description: `Шаг ${step}` });
+      }
+      const versions = disk.versions(project.name);
+      expect(versions.size).toBe(KEEP_VERSIONS);
+      const newest = [...versions.keys()].sort().at(-1)!;
+      expect(JSON.parse(versions.get(newest)!).project.description).toBe(`Шаг ${KEEP_VERSIONS + 2}`);
+      expect([...versions.keys()].sort()[0]).not.toBe("dynasty-20261029-120000-000.json");
+      expect([...versions.values()].every((text) => !text.includes("data:image"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores a chosen version and keeps the replaced state as a version too", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-29T12:00:00Z"));
+      const project = createDemoProject();
+      const dynasty = await create(project);
+      vi.setSystemTime(Date.now() + VERSION_INTERVAL);
+      const changed = { ...project, name: "Переименована" };
+      await dynasty.save(changed);
+      const [oldest] = (await dynasty.versions()).slice(-1);
+      expect(oldest.characters).toBe(project.characters.length);
+      vi.setSystemTime(Date.now() + 1000);
+      const restored = await dynasty.restore(oldest);
+      expect(restored).toEqual(project);
+      expect(disk.saved(project.name)).toEqual(project);
+      const kept = await dynasty.versions();
+      expect(kept).toHaveLength(3);
+      expect(JSON.parse(disk.versions(project.name).get(kept[0].name)!).project.name).toBe("Переименована");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("offers the last good version for a damaged dynasty.json and keeps the damaged file", async () => {
+    const project = createDemoProject();
+    await (await create(project)).close();
+    disk.setFile(project.name, DYNASTY_FILE, '{"app":"dynasty-chronicles","project":{"na');
+    disk.pick(project.name);
+    const failure = await disk.store.open().catch((error) => error);
+    expect(failure).toBeInstanceOf(DamagedDynastyError);
+    expect((failure as DamagedDynastyError).versions).toHaveLength(1);
+    const opened = await (failure as DamagedDynastyError).restore((failure as DamagedDynastyError).versions[0]);
+    expect(opened.project).toEqual(project);
+    expect(disk.saved(project.name)).toEqual(project);
+    expect(disk.file(project.name, DAMAGED_FILE)).toBe('{"app":"dynasty-chronicles","project":{"na');
+    await opened.dynasty.save({ ...project, name: "Снова работает" });
+    expect(disk.saved(project.name)!.name).toBe("Снова работает");
+  });
+
+  it("does not open a dynasty that another window has open", async () => {
+    const project = createDemoProject();
+    await (await create(project)).close();
+    disk.occupy(project.name);
+    disk.pick(project.name);
+    await expect(disk.store.open()).rejects.toThrow("DYNASTY_OPEN_ELSEWHERE");
+    await expect(disk.restart().restoreLast()).rejects.toThrow("DYNASTY_OPEN_ELSEWHERE");
+    expect(disk.saved(project.name)).toEqual(project);
+  });
+
+  it("lets this window reopen its own dynasty and delete it while it is marked as open", async () => {
+    const project = createDemoProject();
+    await create(project);
+    disk.pick(project.name);
+    const again = await disk.store.open();
+    expect(again.project).toEqual(project);
+    await again.dynasty.delete();
+    expect(disk.exists(project.name)).toBe(false);
+    expect(disk.sibling()).toBe("Не трогать");
   });
 
   it("exports through the variant's own save mechanism", async () => {

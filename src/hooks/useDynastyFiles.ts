@@ -10,7 +10,13 @@ import {
   listLegacyProjects,
   loadLegacyProject,
 } from "../lib/legacyStorage";
-import type { DynastyPlace, RecentDynasty } from "../lib/dynastyStore";
+import {
+  DamagedDynastyError,
+  type DynastyPlace,
+  type DynastyVersion,
+  type OpenedDynasty,
+  type RecentDynasty,
+} from "../lib/dynastyStore";
 import { recordStorageFailure } from "../lib/storageDiagnostics";
 import type { Project, ProjectSummary } from "../types";
 import type { ProjectApi } from "./projectApi";
@@ -26,7 +32,7 @@ type Options = {
 
 /** Opening, creating, importing, moving and exporting dynasties. */
 export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Options) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const store = useDynastyStore();
   const { project } = app;
   const [newProjectName, setNewProjectName] = useState<string | undefined>();
@@ -50,6 +56,10 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
   const [legacyUnreadable, setLegacyUnreadable] = useState(hasUnreadableLegacyRecords);
   const [folderWorking, setFolderWorking] = useState(false);
   const [folderError, setFolderError] = useState<string>();
+  /** An unreadable dynasty.json waiting for the user to pick a saved version. */
+  const [damaged, setDamaged] = useState<DamagedDynastyError>();
+  /** Saved versions of the open dynasty while their dialog is shown. */
+  const [versions, setVersions] = useState<DynastyVersion[]>();
   const importInput = useRef<HTMLInputElement>(null);
   const refreshFolders = useCallback(() => {
     void store
@@ -60,9 +70,11 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     setLegacyUnreadable(hasUnreadableLegacyRecords());
   }, [store]);
   useEffect(refreshFolders, [refreshFolders, project.id, app.folderName, app.hasProject]);
-  useEffect(() => {
-    if (app.startupError) setFolderError(t("folderFailed"));
-  }, [app.startupError, t]);
+  const versionDate = useCallback(
+    (version: DynastyVersion) =>
+      new Date(version.savedAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }),
+    [locale],
+  );
 
   const startNewProject = () => {
     setChosenPlace(undefined);
@@ -129,21 +141,34 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     void store.saveFile("dynasty-recovery.json", legacyRecoveryData()).catch(() => {});
   };
 
-  const showFolderFailure = (error: unknown) => {
-    if ((error as Error).name === "AbortError") return;
-    const message = (error as Error).message;
-    setFolderError(
-      t(
-        message === "FOLDER_UNSUPPORTED"
-          ? "folderUnsupported"
-          : message === "FOLDER_NOT_EMPTY"
-            ? "folderNotEmpty"
-            : message === "FOLDER_CONFLICT"
-              ? "folderConflict"
-              : "folderFailed",
-      ),
-    );
-  };
+  const showFolderFailure = useCallback(
+    (error: unknown) => {
+      if ((error as Error).name === "AbortError") return;
+      if (error instanceof DamagedDynastyError) {
+        if (error.versions.length) setDamaged(error);
+        else setFolderError(t("dynastyDamagedNoVersions"));
+        return;
+      }
+      const message = (error as Error).message;
+      setFolderError(
+        t(
+          message === "FOLDER_UNSUPPORTED"
+            ? "folderUnsupported"
+            : message === "FOLDER_NOT_EMPTY"
+              ? "folderNotEmpty"
+              : message === "FOLDER_CONFLICT"
+                ? "folderConflict"
+                : message === "DYNASTY_OPEN_ELSEWHERE"
+                  ? "dynastyOpenElsewhere"
+                  : "folderFailed",
+        ),
+      );
+    },
+    [t],
+  );
+  useEffect(() => {
+    if (app.startupError) showFolderFailure(app.startupFailure);
+  }, [app.startupError, app.startupFailure, showFolderFailure]);
   const chooseDirectory = async () => {
     if (choosingDirectoryRef.current) return;
     const selection = ++directorySelection.current;
@@ -175,33 +200,72 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     setFolderWorking(true);
     setFolderError(undefined);
     try {
-      const opened = await opening;
-      if (!(await app.forceSave())) {
-        notify(t("saveFailedHint"));
-        return;
-      }
-      let next: Project;
-      let dynasty;
-      if (opened) ({ dynasty, project: next } = opened);
-      else {
-        next = mode === "import" ? pendingImport! : createEmptyProject(newProjectName!.trim());
-        dynasty = await store.create(place!, next);
-      }
-      if (!(await app.openFolder(dynasty, next))) {
-        notify(t("saveFailedHint"));
-        return;
-      }
-      onOpened(next);
-      setNewProjectName(undefined);
-      setPendingImport(undefined);
-      setPendingLegacyId(undefined);
-      setChosenPlace(undefined);
-      refreshFolders();
+      await show(
+        (await opening) ??
+          (async () => {
+            const next = mode === "import" ? pendingImport! : createEmptyProject(newProjectName!.trim());
+            return { dynasty: await store.create(place!, next), project: next };
+          }),
+      );
     } catch (error) {
       showFolderFailure(error);
     } finally {
       setFolderWorking(false);
     }
+  };
+  /** Shows an opened dynasty, or creates one once the current one is saved. */
+  const show = async (target: OpenedDynasty | (() => Promise<OpenedDynasty>)) => {
+    const ready = typeof target === "function" ? undefined : target;
+    if (!(await app.forceSave())) {
+      // Nothing changes on the screen: the opened dynasty is free for other windows again.
+      void ready?.dynasty.close().catch(() => {});
+      notify(t("saveFailedHint"));
+      return;
+    }
+    const { dynasty, project: next } = ready ?? (await (target as () => Promise<OpenedDynasty>)());
+    if (!(await app.openFolder(dynasty, next))) {
+      void dynasty.close().catch(() => {});
+      notify(t("saveFailedHint"));
+      return;
+    }
+    onOpened(next);
+    setNewProjectName(undefined);
+    setPendingImport(undefined);
+    setPendingLegacyId(undefined);
+    setChosenPlace(undefined);
+    refreshFolders();
+  };
+  /** Replaces an unreadable dynasty.json with the chosen saved version and opens it. */
+  const restoreDamaged = async (version: DynastyVersion) => {
+    if (!damaged || folderWorking || app.busy) return;
+    setFolderWorking(true);
+    try {
+      await show(await damaged.restore(version));
+      setDamaged(undefined);
+      notify(t("versionRestored", { date: versionDate(version) }));
+    } catch (error) {
+      setDamaged(undefined);
+      if (error instanceof DamagedDynastyError) showFolderFailure(error);
+      else setFolderError(t("versionRestoreFailed"));
+    } finally {
+      setFolderWorking(false);
+    }
+  };
+  const showVersions = async () => {
+    closeProjectMenu();
+    try {
+      setVersions(await app.listVersions());
+    } catch {
+      notify(t("folderFailed"));
+    }
+  };
+  const restoreVersion = async (version: DynastyVersion) => {
+    if (!(await app.restoreVersion(version))) {
+      notify(t("versionRestoreFailed"));
+      return;
+    }
+    setVersions(undefined);
+    notify(t("versionRestored", { date: versionDate(version) }));
   };
   const createNewProject = () => {
     if (newProjectName?.trim()) void workWithFolder("create");
@@ -243,6 +307,14 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     folderWorking,
     folderError,
     setFolderError,
+    damaged,
+    dismissDamaged: () => setDamaged(undefined),
+    restoreDamaged,
+    versions,
+    versionDate,
+    showVersions,
+    closeVersions: () => setVersions(undefined),
+    restoreVersion,
     newProjectName,
     setNewProjectName,
     pendingImport,

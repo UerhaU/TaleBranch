@@ -217,6 +217,7 @@ pub fn run() {
     let data = portable_data().expect("Could not locate the portable application directory");
     let storage =
         Arc::new(Storage::new(&data).expect("Could not create TaleBranch-data beside the portable application"));
+    let open_dynasties = storage.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(storage)
@@ -244,6 +245,12 @@ pub fn run() {
             custom_styles_list,
             custom_style_read
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run TaleBranch");
+        .build(tauri::generate_context!())
+        .expect("failed to run TaleBranch")
+        .run(move |_app, event| {
+            // Other copies of the program may open these dynasties once this one has exited.
+            if let tauri::RunEvent::Exit = event {
+                open_dynasties.release_all();
+            }
+        });
 }

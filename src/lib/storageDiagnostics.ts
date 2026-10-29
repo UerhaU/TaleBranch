@@ -1,6 +1,6 @@
 export interface StorageFailure {
   time: string;
-  operation: "save" | "switch" | "purge" | "delete" | "export";
+  operation: "save" | "switch" | "purge" | "delete" | "export" | "restore";
   reason: "quota" | "blocked" | "unknown";
   name: string;
   message: string;

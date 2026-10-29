@@ -7,7 +7,11 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Component, Path, PathBuf},
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 const FILE_NAME: &str = "dynasty.json";
@@ -16,6 +20,14 @@ const PHOTO_FOLDER: &str = "photos";
 const MAX_PHOTO_SIZE: u64 = 64 * 1024 * 1024;
 /// A copy of dynasty.json from before its photos moved out.
 const BACKUP_NAME: &str = "dynasty.backup-before-photos";
+/// An unreadable dynasty.json, kept when a saved version replaces it.
+const DAMAGED_NAME: &str = "dynasty.damaged";
+/// Recent copies of dynasty.json: `<dynasty>/backups/dynasty-YYYYMMDD-HHMMSS-mmm.json`.
+const VERSION_FOLDER: &str = "backups";
+/// Marks a dynasty as open in one copy of the program; the same format as dynastyProtection.ts.
+const OPEN_MARKER: &str = ".talebranch-open.json";
+/// A marker this old was left by a crash.
+const MARKER_STALE_MS: u64 = 3 * 60 * 1000;
 
 #[derive(Debug, Serialize)]
 pub struct StorageError {
@@ -61,15 +73,23 @@ pub struct Storage {
     settings: PathBuf,
     session: PathBuf,
     settings_lock: Mutex<()>,
+    /// This copy of the program in open markers.
+    owner: String,
+    /// Dynasties marked as open here; the markers are removed when the program exits.
+    opened: Mutex<HashSet<PathBuf>>,
 }
 impl Storage {
     pub fn new(data: &Path) -> io::Result<Self> {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
         fs::create_dir_all(data)?;
+        let number = COUNTER.fetch_add(1, Ordering::Relaxed);
         Ok(Self {
             roots: Mutex::new(HashSet::new()),
             settings: data.join("recent-folders.json"),
             session: data.join("last-folder.json"),
             settings_lock: Mutex::new(()),
+            owner: format!("desktop-{}-{}-{number}", std::process::id(), now_ms()),
+            opened: Mutex::new(HashSet::new()),
         })
     }
     pub fn allow(&self, path: &Path) -> Result<Directory> {
@@ -95,25 +115,15 @@ impl Storage {
         Ok(canonical)
     }
     fn file(&self, directory: &str) -> Result<PathBuf> {
-        let directory = self.directory(directory)?;
-        let path = directory.join(FILE_NAME);
-        if let Ok(metadata) = fs::symlink_metadata(&path) {
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err(failure("INVALID_DYNASTY_FILE"));
-            }
-            if fs::canonicalize(&path)?.parent() != Some(directory.as_path()) {
-                return Err(failure("INVALID_DYNASTY_FILE"));
-            }
-        }
-        Ok(path)
+        inside(&self.directory(directory)?, FILE_NAME, "INVALID_DYNASTY_FILE")
     }
-    /// `<dynasty>/photos` as a real folder directly inside the dynasty; `None` when it does not exist yet.
-    fn photo_folder(&self, directory: &str, create: bool) -> Result<Option<PathBuf>> {
+    /// `<dynasty>/<name>` as a real folder directly inside the dynasty; `None` when it does not exist yet.
+    fn subfolder(&self, directory: &str, name: &str, create: bool, invalid: &str) -> Result<Option<PathBuf>> {
         let directory = self.directory(directory)?;
-        let folder = directory.join(PHOTO_FOLDER);
+        let folder = directory.join(name);
         match fs::symlink_metadata(&folder) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
-                return Err(failure("INVALID_PHOTO_FOLDER"));
+                return Err(failure(invalid));
             }
             Ok(_) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound && create => fs::create_dir(&folder)?,
@@ -122,25 +132,60 @@ impl Storage {
         }
         let canonical = fs::canonicalize(&folder)?;
         if canonical.parent() != Some(directory.as_path()) {
-            return Err(failure("INVALID_PHOTO_FOLDER"));
+            return Err(failure(invalid));
         }
         Ok(Some(canonical))
+    }
+    fn photo_folder(&self, directory: &str, create: bool) -> Result<Option<PathBuf>> {
+        self.subfolder(directory, PHOTO_FOLDER, create, "INVALID_PHOTO_FOLDER")
+    }
+    fn version_folder(&self, directory: &str, create: bool) -> Result<Option<PathBuf>> {
+        self.subfolder(directory, VERSION_FOLDER, create, "INVALID_VERSION_FOLDER")
     }
     /// Only our own file names directly inside the photos folder: no `..`, other folders or links.
     fn photo(&self, folder: &Path, name: &str) -> Result<PathBuf> {
         if !photo_name(name) {
             return Err(failure("INVALID_PHOTO_NAME"));
         }
-        let path = folder.join(name);
-        if let Ok(metadata) = fs::symlink_metadata(&path) {
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err(failure("INVALID_PHOTO_FILE"));
-            }
-            if fs::canonicalize(&path)?.parent() != Some(folder) {
-                return Err(failure("INVALID_PHOTO_FILE"));
+        inside(folder, name, "INVALID_PHOTO_FILE")
+    }
+    /// Only version names directly inside the backups folder.
+    fn version(&self, folder: &Path, name: &str) -> Result<PathBuf> {
+        if !version_name(name) {
+            return Err(failure("INVALID_VERSION_NAME"));
+        }
+        inside(folder, name, "INVALID_VERSION_FILE")
+    }
+    /// Marks the dynasty as open in this copy of the program; refreshing is claiming again.
+    fn claim(&self, directory: &str) -> Result<()> {
+        let path = self.directory(directory)?;
+        let _lock = lock_directory(&path)?;
+        let marker = inside(&path, OPEN_MARKER, "INVALID_OPEN_MARKER")?;
+        if let Some((owner, updated)) = read_marker(&marker)? {
+            if owner != self.owner && now_ms().saturating_sub(updated) < MARKER_STALE_MS {
+                return Err(failure("DYNASTY_OPEN_ELSEWHERE"));
             }
         }
-        Ok(path)
+        let contents = json!({
+            "app": "talebranch",
+            "owner": self.owner,
+            "session": self.owner,
+            "updatedAt": now_ms()
+        });
+        atomic_write(&marker, contents.to_string().as_bytes())?;
+        self.opened.lock().unwrap().insert(path);
+        Ok(())
+    }
+    fn release(&self, directory: &str) -> Result<()> {
+        let path = self.directory(directory)?;
+        self.opened.lock().unwrap().remove(&path);
+        release_marker(&path, &self.owner)
+    }
+    /// Removes the markers of every dynasty still open here; called when the program exits.
+    pub fn release_all(&self) {
+        for path in self.opened.lock().unwrap().drain() {
+            let _ = release_marker(&path, &self.owner);
+        }
     }
     pub fn execute(&self, request: Request) -> Result<Value> {
         match request {
@@ -176,7 +221,7 @@ impl Storage {
                 Ok(Value::Null)
             }
             Request::Read { directory } => {
-                let text = fs::read_to_string(self.file(&directory)?)?;
+                let text = read_text(&self.file(&directory)?)?;
                 Ok(json!({ "revision": hash(&text), "text": text }))
             }
             Request::Write {
@@ -188,7 +233,7 @@ impl Storage {
                 let directory_path = self.directory(&directory)?;
                 let _lock = lock_directory(&directory_path)?;
                 let path = self.file(&directory)?;
-                let previous = fs::read_to_string(&path)?;
+                let previous = read_text(&path)?;
                 if hash(&previous) != expected {
                     return Err(failure("FOLDER_CONFLICT"));
                 }
@@ -284,24 +329,30 @@ impl Storage {
                     _ => Ok(Value::Null),
                 }
             }
-            Request::Backup { directory, expected } => {
-                // A copy of dynasty.json before its photos move out. An existing copy is never replaced.
+            Request::Backup {
+                directory,
+                expected,
+                damaged,
+            } => {
+                // A copy of dynasty.json before its photos move out, or of an unreadable file before
+                // a version replaces it. The bytes are copied exactly. An existing copy is never replaced.
                 let path = self.file(&directory)?;
-                let text = fs::read_to_string(&path)?;
-                if hash(&text) != expected {
+                let bytes = fs::read(&path)?;
+                if hash(&String::from_utf8_lossy(&bytes)) != expected {
                     return Err(failure("FOLDER_CONFLICT"));
                 }
+                let base = if damaged { DAMAGED_NAME } else { BACKUP_NAME };
                 let parent = self.directory(&directory)?;
                 let mut number = 1;
                 loop {
                     let name = match number {
-                        1 => format!("{BACKUP_NAME}.json"),
-                        _ => format!("{BACKUP_NAME} ({number}).json"),
+                        1 => format!("{base}.json"),
+                        _ => format!("{base} ({number}).json"),
                     };
                     number += 1;
                     let backup = parent.join(&name);
                     match fs::symlink_metadata(&backup) {
-                        Ok(metadata) if metadata.is_file() && fs::read(&backup)? == text.as_bytes() => {
+                        Ok(metadata) if metadata.is_file() && fs::read(&backup)? == bytes => {
                             return Ok(json!(name));
                         }
                         Ok(_) => continue,
@@ -309,10 +360,73 @@ impl Storage {
                         Err(error) => return Err(error.into()),
                     }
                     let mut file = OpenOptions::new().write(true).create_new(true).open(&backup)?;
-                    file.write_all(text.as_bytes())?;
+                    file.write_all(&bytes)?;
                     file.sync_all()?;
                     return Ok(json!(name));
                 }
+            }
+            Request::VersionList { directory } => {
+                let Some(folder) = self.version_folder(&directory, false)? else {
+                    return Ok(json!([]));
+                };
+                let mut names = vec![];
+                for entry in fs::read_dir(folder)? {
+                    let entry = entry?;
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    if version_name(&name) && entry.file_type()?.is_file() {
+                        names.push(name);
+                    }
+                }
+                Ok(json!(names))
+            }
+            Request::VersionRead { directory, name } => {
+                if !version_name(&name) {
+                    return Err(failure("INVALID_VERSION_NAME"));
+                }
+                let Some(folder) = self.version_folder(&directory, false)? else {
+                    return Ok(Value::Null);
+                };
+                match read_text(&self.version(&folder, &name)?) {
+                    Ok(text) => Ok(json!(text)),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Value::Null),
+                    Err(error) => Err(error.into()),
+                }
+            }
+            Request::VersionWrite {
+                directory,
+                name,
+                contents,
+            } => {
+                if !version_name(&name) {
+                    return Err(failure("INVALID_VERSION_NAME"));
+                }
+                // Only documents the program can open again are kept as versions.
+                validate_document(&contents)?;
+                let folder = self
+                    .version_folder(&directory, true)?
+                    .ok_or_else(|| failure("INVALID_VERSION_FOLDER"))?;
+                atomic_write(&self.version(&folder, &name)?, contents.as_bytes())?;
+                Ok(Value::Null)
+            }
+            Request::VersionRemove { directory, name } => {
+                if !version_name(&name) {
+                    return Err(failure("INVALID_VERSION_NAME"));
+                }
+                let Some(folder) = self.version_folder(&directory, false)? else {
+                    return Ok(Value::Null);
+                };
+                match fs::remove_file(self.version(&folder, &name)?) {
+                    Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
+                    _ => Ok(Value::Null),
+                }
+            }
+            Request::OpenClaim { directory } => {
+                self.claim(&directory)?;
+                Ok(Value::Null)
+            }
+            Request::OpenRelease { directory } => {
+                self.release(&directory)?;
+                Ok(Value::Null)
             }
             Request::DeleteDynasty { directory, expected } => {
                 let path = self.directory(&directory)?;
@@ -323,7 +437,7 @@ impl Storage {
                     return Err(failure("INVALID_DYNASTY_DIRECTORY"));
                 }
                 let _lock = lock_directory(&path)?;
-                let text = fs::read_to_string(self.file(&directory)?)?;
+                let text = read_text(&self.file(&directory)?)?;
                 if hash(&text) != expected {
                     return Err(failure("FOLDER_CONFLICT"));
                 }
@@ -463,6 +577,30 @@ pub enum Request {
     Backup {
         directory: String,
         expected: String,
+        #[serde(default)]
+        damaged: bool,
+    },
+    VersionList {
+        directory: String,
+    },
+    VersionRead {
+        directory: String,
+        name: String,
+    },
+    VersionWrite {
+        directory: String,
+        name: String,
+        contents: String,
+    },
+    VersionRemove {
+        directory: String,
+        name: String,
+    },
+    OpenClaim {
+        directory: String,
+    },
+    OpenRelease {
+        directory: String,
     },
 }
 fn describe(path: &Path) -> Directory {
@@ -497,6 +635,68 @@ fn photo_name(name: &str) -> bool {
     stem.len() == 64
         && stem.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
         && matches!(extension, "jpg" | "png" | "webp")
+}
+/// `dynasty-<8 digits>-<6 digits>-<3 digits>.json`, exactly as dynastyProtection.ts names versions.
+fn version_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    let digits = |range: std::ops::Range<usize>| bytes[range].iter().all(u8::is_ascii_digit);
+    name.len() == 32
+        && name.starts_with("dynasty-")
+        && name.ends_with(".json")
+        && bytes[16] == b'-'
+        && bytes[23] == b'-'
+        && digits(8..16)
+        && digits(17..23)
+        && digits(24..27)
+}
+/// A file directly inside `folder`: no links, other folders or paths leading out.
+fn inside(folder: &Path, name: &str, invalid: &str) -> Result<PathBuf> {
+    let path = folder.join(name);
+    if let Ok(metadata) = fs::symlink_metadata(&path) {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(failure(invalid));
+        }
+        if fs::canonicalize(&path)?.parent() != Some(folder) {
+            return Err(failure(invalid));
+        }
+    }
+    Ok(path)
+}
+/// A damaged file may not be valid UTF-8; its revision is still the hash of what was read.
+fn read_text(path: &Path) -> io::Result<String> {
+    Ok(String::from_utf8_lossy(&fs::read(path)?).into_owned())
+}
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |time| time.as_millis() as u64)
+}
+/// The owner and the time of a marker; an unreadable marker counts as none.
+fn read_marker(path: &Path) -> Result<Option<(String, u64)>> {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let Ok(value) = serde_json::from_slice::<Value>(&bytes) else {
+        return Ok(None);
+    };
+    let (Some(owner), Some(updated)) = (value["owner"].as_str(), value["updatedAt"].as_u64()) else {
+        return Ok(None);
+    };
+    Ok((value["app"] == "talebranch").then(|| (owner.into(), updated)))
+}
+/// Removes the marker only while it is still `owner`'s.
+fn release_marker(directory: &Path, owner: &str) -> Result<()> {
+    let _lock = lock_directory(directory)?;
+    let marker = inside(directory, OPEN_MARKER, "INVALID_OPEN_MARKER")?;
+    if !read_marker(&marker)?.is_some_and(|(current, _)| current == owner) {
+        return Ok(());
+    }
+    match fs::remove_file(&marker) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
+        _ => Ok(()),
+    }
 }
 fn hash(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))
@@ -664,6 +864,7 @@ mod tests {
         storage.execute(Request::Backup {
             directory: directory.into(),
             expected,
+            damaged: false,
         })
     }
     #[test]
@@ -793,6 +994,201 @@ mod tests {
         assert!(lock_directory(temp.path()).is_err());
         drop(first);
         assert!(lock_directory(temp.path()).is_ok());
+    }
+    const VERSION: &str = "dynasty-20261029-120000-000.json";
+    fn version_write(storage: &Storage, directory: &str, name: &str, contents: String) -> Result<Value> {
+        storage.execute(Request::VersionWrite {
+            directory: directory.into(),
+            name: name.into(),
+            contents,
+        })
+    }
+    fn version_read(storage: &Storage, directory: &str, name: &str) -> Result<Value> {
+        storage.execute(Request::VersionRead {
+            directory: directory.into(),
+            name: name.into(),
+        })
+    }
+    fn version_list(storage: &Storage, directory: &str) -> Result<Value> {
+        storage.execute(Request::VersionList {
+            directory: directory.into(),
+        })
+    }
+    #[test]
+    fn versions_round_trip_inside_the_backups_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        assert_eq!(version_list(&storage, &root.path).unwrap(), json!([]));
+        let text = document("Saved");
+        version_write(&storage, &root.path, VERSION, text.clone()).unwrap();
+        let folder = temp.path().join(VERSION_FOLDER);
+        assert_eq!(fs::read_to_string(folder.join(VERSION)).unwrap(), text);
+        fs::write(folder.join("notes.txt"), "Keep").unwrap();
+        assert_eq!(version_list(&storage, &root.path).unwrap(), json!([VERSION]));
+        assert_eq!(version_read(&storage, &root.path, VERSION).unwrap(), json!(text));
+        storage
+            .execute(Request::VersionRemove {
+                directory: root.path.clone(),
+                name: VERSION.into(),
+            })
+            .unwrap();
+        assert_eq!(version_list(&storage, &root.path).unwrap(), json!([]));
+        assert_eq!(version_read(&storage, &root.path, VERSION).unwrap(), Value::Null);
+        assert_eq!(fs::read_to_string(folder.join("notes.txt")).unwrap(), "Keep");
+    }
+    #[test]
+    fn version_paths_outside_the_backups_folder_or_broken_documents_are_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        let away = other.path().to_string_lossy().into_owned();
+        assert!(version_write(&storage, &away, VERSION, document("Outside")).is_err());
+        assert!(fs::read_dir(other.path()).unwrap().next().is_none());
+        for name in [
+            format!("../{VERSION}"),
+            format!("..\\{VERSION}"),
+            format!("sub/{VERSION}"),
+            format!("{VERSION}:stream"),
+            "dynasty-2026102-120000-000.json".into(),
+            "dynasty-20261029-120000-00a.json".into(),
+            "dynasty-20261029-120000-000.exe".into(),
+            FILE_NAME.into(),
+            "..".into(),
+        ] {
+            let write = version_write(&storage, &root.path, &name, document("Bad"));
+            assert!(write.is_err(), "{name}");
+            assert!(version_read(&storage, &root.path, &name).is_err(), "{name}");
+            let remove = Request::VersionRemove {
+                directory: root.path.clone(),
+                name: name.clone(),
+            };
+            assert!(storage.execute(remove).is_err(), "{name}");
+        }
+        // Only documents the program can open again are kept.
+        assert!(version_write(&storage, &root.path, VERSION, "{}".into()).is_err());
+        assert!(!temp.path().join(VERSION_FOLDER).join(VERSION).exists());
+        // A file named "backups" belongs to the user and is not replaced by a folder.
+        fs::write(temp.path().join(VERSION_FOLDER), "Not a folder").unwrap();
+        let blocked = version_write(&storage, &root.path, VERSION, document("Blocked"));
+        assert!(blocked.is_err());
+        assert!(version_list(&storage, &root.path).is_err());
+        assert_eq!(
+            fs::read_to_string(temp.path().join(VERSION_FOLDER)).unwrap(),
+            "Not a folder"
+        );
+    }
+    #[test]
+    fn a_damaged_file_is_copied_exactly_before_a_version_replaces_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        // A file cut in the middle of a Cyrillic letter is not valid UTF-8.
+        let mut damaged = br#"{"app":"dynasty-chronicles","project":{"name":""#.to_vec();
+        damaged.extend_from_slice(&"Дом".as_bytes()[..3]);
+        fs::write(temp.path().join(FILE_NAME), &damaged).unwrap();
+        let read = storage
+            .execute(Request::Read {
+                directory: root.path.clone(),
+            })
+            .unwrap();
+        let revision = read["revision"].as_str().unwrap().to_string();
+        let copy = storage
+            .execute(Request::Backup {
+                directory: root.path.clone(),
+                expected: revision.clone(),
+                damaged: true,
+            })
+            .unwrap();
+        let name = format!("{DAMAGED_NAME}.json");
+        assert_eq!(copy, json!(name));
+        assert_eq!(fs::read(temp.path().join(&name)).unwrap(), damaged);
+        let restored = document("Restored");
+        storage
+            .execute(Request::Write {
+                directory: root.path.clone(),
+                text: restored.clone(),
+                expected: revision,
+            })
+            .unwrap();
+        assert_eq!(fs::read_to_string(temp.path().join(FILE_NAME)).unwrap(), restored);
+    }
+    fn claim(storage: &Storage, directory: &str) -> Result<Value> {
+        storage.execute(Request::OpenClaim {
+            directory: directory.into(),
+        })
+    }
+    fn release(storage: &Storage, directory: &str) -> Result<Value> {
+        storage.execute(Request::OpenRelease {
+            directory: directory.into(),
+        })
+    }
+    #[test]
+    fn an_open_dynasty_is_refused_to_a_second_copy_until_released() {
+        let temp = tempfile::tempdir().unwrap();
+        let first = Storage::new(&temp.path().join("first")).unwrap();
+        let second = Storage::new(&temp.path().join("second")).unwrap();
+        let root = first.allow(temp.path()).unwrap();
+        second.allow(temp.path()).unwrap();
+        claim(&first, &root.path).unwrap();
+        let marker = temp.path().join(OPEN_MARKER);
+        assert!(marker.exists());
+        let refused = claim(&second, &root.path).unwrap_err();
+        assert_eq!(refused.message, "DYNASTY_OPEN_ELSEWHERE");
+        // Refreshing is claiming again by the same copy.
+        claim(&first, &root.path).unwrap();
+        // Releasing a marker of another copy leaves it in place.
+        release(&second, &root.path).unwrap();
+        assert!(marker.exists());
+        release(&first, &root.path).unwrap();
+        assert!(!marker.exists());
+        claim(&second, &root.path).unwrap();
+        second.release_all();
+        assert!(!marker.exists());
+    }
+    #[test]
+    fn a_marker_left_by_a_crash_expires() {
+        let temp = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("settings")).unwrap();
+        let root = storage.allow(temp.path()).unwrap();
+        let marker = temp.path().join(OPEN_MARKER);
+        let fresh = json!({"app":"talebranch","owner":"browser_tab","session":"open_1","updatedAt":now_ms()});
+        fs::write(&marker, fresh.to_string()).unwrap();
+        assert!(claim(&storage, &root.path).is_err());
+        let old = now_ms() - MARKER_STALE_MS - 1000;
+        let stale = json!({"app":"talebranch","owner":"browser_tab","session":"open_1","updatedAt":old});
+        fs::write(&marker, stale.to_string()).unwrap();
+        claim(&storage, &root.path).unwrap();
+        let written: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
+        assert_eq!(written["owner"], json!(storage.owner));
+        // An unreadable marker does not block opening.
+        fs::write(&marker, "not json").unwrap();
+        let other = Storage::new(&temp.path().join("other")).unwrap();
+        other.allow(temp.path()).unwrap();
+        claim(&other, &root.path).unwrap();
+    }
+    #[test]
+    fn an_open_marker_does_not_prevent_deleting_the_dynasty() {
+        let temp = tempfile::tempdir().unwrap();
+        let storage = Storage::new(&temp.path().join("app-data")).unwrap();
+        let folder = temp.path().join("dynasty");
+        fs::create_dir(&folder).unwrap();
+        let text = document("Delete");
+        fs::write(folder.join(FILE_NAME), &text).unwrap();
+        let dynasty = storage.allow(&folder).unwrap();
+        claim(&storage, &dynasty.path).unwrap();
+        version_write(&storage, &dynasty.path, VERSION, text.clone()).unwrap();
+        storage
+            .execute(Request::DeleteDynasty {
+                directory: dynasty.path.clone(),
+                expected: hash(&text),
+            })
+            .unwrap();
+        assert!(!folder.exists());
+        assert!(release(&storage, &dynasty.path).is_err());
+        storage.release_all();
+        assert!(!folder.exists());
     }
     #[test]
     fn last_folder_is_separate_from_dynasty_files_and_survives_restart() {

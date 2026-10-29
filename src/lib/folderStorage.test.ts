@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DynastyFolder, DYNASTY_FILE, dynastyFolderName, grantDirectory } from "./folderStorage";
 import { createDemoProject } from "./project";
 import { MemoryDirectory } from "./folderStorage.testSupport";
+import { OPEN_MARKER } from "./dynastyProtection";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("dynasties in user folders", () => {
@@ -15,7 +16,8 @@ describe("dynasties in user folders", () => {
     };
     project.trashedCharacters.push(project.characters.pop()!);
     await DynastyFolder.create(directory, project);
-    expect([...directory.files.keys()]).toEqual([DYNASTY_FILE]);
+    // dynasty.json and the marker of this open window.
+    expect([...directory.files.keys()].sort()).toEqual([OPEN_MARKER, DYNASTY_FILE]);
     const reopened = await DynastyFolder.open(directory);
     expect(reopened.project).toEqual(project);
     project.name = "Изменено в исходной папке";
@@ -217,7 +219,7 @@ describe("dynasties in user folders", () => {
   it("rejects corrupt data and denied permissions without writing", async () => {
     const directory = new MemoryDirectory();
     directory.files.set(DYNASTY_FILE, "{}");
-    await expect(DynastyFolder.open(directory)).rejects.toThrow("INVALID_PROJECT_FORMAT");
+    await expect(DynastyFolder.open(directory)).rejects.toMatchObject({ message: "DYNASTY_DAMAGED", versions: [] });
     directory.permission = "denied";
     await expect(grantDirectory(directory)).rejects.toMatchObject({ name: "NotAllowedError" });
     expect(directory.files.get(DYNASTY_FILE)).toBe("{}");

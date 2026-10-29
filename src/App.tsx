@@ -30,6 +30,7 @@ import { SettingsDialog } from "./components/dialogs/SettingsDialog";
 import { ShortcutsDialog } from "./components/dialogs/ShortcutsDialog";
 import { TrashDialog } from "./components/dialogs/TrashDialog";
 import { UtilityDialog } from "./components/dialogs/UtilityDialog";
+import { VersionsDialog } from "./components/dialogs/VersionsDialog";
 
 export default function App() {
   const { t } = useI18n();
@@ -239,6 +240,27 @@ export default function App() {
       )}
       {files.newProjectName !== undefined && <NewDynastyDialog files={files} />}
       {files.pendingImport && <ImportDynastyDialog files={files} name={files.pendingImport.name} />}
+      {files.versions && (
+        <VersionsDialog
+          title={t("dynastyVersions")}
+          hint={t("dynastyVersionsHint")}
+          versions={files.versions}
+          formatDate={files.versionDate}
+          onRestore={files.restoreVersion}
+          onClose={files.closeVersions}
+        />
+      )}
+      {files.damaged && (
+        <VersionsDialog
+          damaged
+          title={t("dynastyDamagedTitle")}
+          hint={t("dynastyDamagedHint")}
+          versions={files.damaged.versions}
+          formatDate={files.versionDate}
+          onRestore={files.restoreDamaged}
+          onClose={files.dismissDamaged}
+        />
+      )}
       {files.folderError && (
         <FolderErrorBar message={files.folderError} onClose={() => files.setFolderError(undefined)} />
       )}
