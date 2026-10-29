@@ -167,6 +167,8 @@ export const desktopBackend: FolderBackend = {
   async forget(directory) {
     await native("desktop_forget_folder", { directory: nativePath(directory) });
   },
+  // Rust removes the entry by its path, also for a folder that no longer exists, and clears the last dynasty.
+  forgetRecent: (folder) => desktopBackend.forget(folder.directory),
   saveFile: (name, contents, png) => native("desktop_save_export", { name, contents, png }),
   // WebView destruction need not dispatch beforeunload. Intercept the native close too.
   guardClose(flush, onGuardFailure) {

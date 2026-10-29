@@ -46,6 +46,8 @@ export interface RecentDynasty {
   readonly name: string;
   readonly folderName: string;
 }
+/** Whether the folder of a recent dynasty is still there. A browser says "unknown" until access is granted again. */
+export type RecentFolderStatus = "present" | "missing" | "unknown";
 export interface OpenedDynasty {
   dynasty: Dynasty;
   project: Project;
@@ -67,6 +69,11 @@ export interface DynastyStore {
   /** The dynasty that was open on the last run, without any dialogs. */
   restoreLast(): Promise<OpenedDynasty | undefined>;
   recent(): Promise<RecentDynasty[]>;
+  folderStatus(recent: RecentDynasty): Promise<RecentFolderStatus>;
+  /** Removes a dynasty from the recent list only; its folder and files stay as they are. */
+  forgetRecent(recent: RecentDynasty): Promise<void>;
+  /** Deletes the whole folder of a recent dynasty after the user confirmed it, and forgets it. */
+  deleteRecent(recent: RecentDynasty): Promise<void>;
   /** Marks a dynasty as the last one and adds it to the recent list. */
   remember(dynasty: Dynasty): Promise<void>;
   /** After an explicit close: the next start shows the welcome screen. */
@@ -87,6 +94,8 @@ export interface FolderBackend {
   remember(folder: DynastyFolder, name: string): Promise<void>;
   clearLast(): Promise<void>;
   forget(directory: DynastyDirectory): Promise<void>;
+  /** Forgets one recent entry, also when its folder no longer exists. */
+  forgetRecent(folder: RecentFolder): Promise<void>;
   saveFile(name: string, contents: string, png: boolean): Promise<boolean>;
   guardClose(flush: FlushBeforeClose, onGuardFailure: () => void): () => void;
 }
@@ -161,7 +170,7 @@ export function createFolderStore(backend: FolderBackend): DynastyStore {
       }
     }
   };
-  return {
+  const store: DynastyStore = {
     kind: backend.kind,
     supported: backend.supported,
     choosePlace: () => backend.pick(),
@@ -197,9 +206,27 @@ export function createFolderStore(backend: FolderBackend): DynastyStore {
         folder,
       }));
     },
+    async folderStatus(recent) {
+      const { directory } = (recent as RecentEntry).folder;
+      try {
+        if ((await directory.queryPermission({ mode: "readwrite" })) !== "granted") return "unknown";
+        // Listing fails with NotFoundError once the folder itself is gone.
+        for await (const _ of directory.values()) break;
+        return "present";
+      } catch (error) {
+        return (error as Error)?.name === "NotFoundError" ? "missing" : "unknown";
+      }
+    },
+    forgetRecent: (recent) => backend.forgetRecent((recent as RecentEntry).folder),
+    async deleteRecent(recent) {
+      // Opening first takes the same lock and checks as the «Delete dynasty» menu item.
+      const { dynasty } = await store.open(recent);
+      await dynasty.delete();
+    },
     remember: (dynasty) => (dynasty as FolderDynasty).remember(),
     forgetLast: () => backend.clearLast(),
     saveFile: (name, contents, png = false) => backend.saveFile(name, contents, png),
     guardClose: (flush, onGuardFailure) => backend.guardClose(flush, onGuardFailure),
   };
+  return store;
 }

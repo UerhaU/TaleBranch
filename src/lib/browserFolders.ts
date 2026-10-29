@@ -112,6 +112,14 @@ export function browserBackend(bookmarks: FolderBookmarks = indexedDbBookmarks):
     async forget(directory) {
       await bookmarks.delete(await findBookmark(bookmarks, directory));
     },
+    async forgetRecent(folder) {
+      await bookmarks.delete([folder.id]);
+      try {
+        if (localStorage.getItem(LAST_BOOKMARK_KEY) === folder.id) setLast();
+      } catch {
+        /* Optional browser metadata. */
+      }
+    },
     async saveFile(name, contents, png) {
       const url = png
         ? `data:image/png;base64,${contents}`

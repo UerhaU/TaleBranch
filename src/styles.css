@@ -1908,8 +1908,49 @@ button.tb-dyn-btn.is-open {
   text-align: left;
 }
 
-.tb-recent:hover {
+.tb-recent:not(:disabled):hover {
   background: var(--tb-surface-3);
+}
+
+/* Строка недавней династии: открыть, убрать из списка, удалить */
+.tb-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tb-recent-row > .tb-recent {
+  min-width: 0;
+  flex: 1;
+}
+
+.tb-recent-row .tb-recent:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.tb-recent-row.is-missing .tb-recent-text small {
+  color: var(--tb-danger-text);
+}
+
+/* Значки видны всегда, но приглушены; ярче при наведении или фокусе */
+.tb-recent-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  opacity: 0.6;
+  transition: opacity 150ms;
+}
+
+.tb-recent-row:hover .tb-recent-actions,
+.tb-recent-row:focus-within .tb-recent-actions {
+  opacity: 1;
+}
+
+.tb-recent-forget {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 .tb-recent-icon {

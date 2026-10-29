@@ -612,6 +612,65 @@ describe("dynasty and trash deletion in the interface", () => {
     clickItem(project.name);
     await settle(() => expect(container.querySelector(".project-switcher strong")?.textContent).toBe(project.name));
   });
+
+  describe("recent dynasties on the welcome screen", () => {
+    /** A dynasty that was closed, so the next start shows it in the recent list. */
+    const closed = async () => {
+      const project = await mount();
+      act(() => container.querySelector<HTMLButtonElement>(".project-switcher > button")!.click());
+      click("Закрыть династию");
+      await settle(() => expect(container.querySelector(".dynasty-welcome")).not.toBeNull());
+      return project;
+    };
+    const recentNames = () =>
+      Array.from(container.querySelectorAll(".tb-recent-row .tb-recent-name"), (item) => item.textContent);
+
+    it("removes a dynasty from the list without touching its folder", async () => {
+      const project = await closed();
+      await restart();
+      await settle(() => expect(recentNames()).toEqual([project.name]));
+      click(`Убрать «${project.name}» из списка`);
+      await settle(() => expect(recentNames()).toEqual([]));
+      expect(saved()).toEqual(project);
+      expect(container.textContent).toContain("Убрано из списка");
+      await restart();
+      await settle(() => expect(container.querySelector(".tb-recent-empty")).not.toBeNull());
+      expect(recentNames()).toEqual([]);
+    });
+
+    it("marks a folder that no longer exists and offers only removing it from the list", async () => {
+      const project = await closed();
+      // The folder was deleted outside the program: listing it fails.
+      folder().values = () => {
+        throw new DOMException("Missing folder", "NotFoundError");
+      };
+      await restart();
+      await settle(() => expect(container.querySelector(".tb-recent-row.is-missing")).not.toBeNull());
+      const row = container.querySelector<HTMLElement>(".tb-recent-row")!;
+      expect(row.textContent).toContain("Папка не найдена");
+      expect(row.querySelector<HTMLButtonElement>(".tb-recent")!.disabled).toBe(true);
+      expect(row.querySelector(`[aria-label="Удалить «${project.name}»"]`)).toBeNull();
+      click("Убрать из списка", row);
+      await settle(() => expect(recentNames()).toEqual([]));
+    });
+
+    it("deletes the dynasty folder from the list only after confirmation", async () => {
+      const project = await closed();
+      home.files.set("neighbour.txt", "Not a dynasty");
+      await restart();
+      await settle(() => expect(recentNames()).toEqual([project.name]));
+      click(`Удалить «${project.name}»`);
+      expect(dialog().textContent).toContain("Будет безвозвратно удалена папка династии");
+      click("Отмена", dialog());
+      expect(home.directories.has(project.name)).toBe(true);
+      click(`Удалить «${project.name}»`);
+      click("Удалить безвозвратно", dialog());
+      await settle(() => expect(recentNames()).toEqual([]));
+      expect(home.directories.has(project.name)).toBe(false);
+      expect(home.files.get("neighbour.txt")).toBe("Not a dynasty");
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
+    });
+  });
 });
 
 describe("character panel, menus and keys", () => {

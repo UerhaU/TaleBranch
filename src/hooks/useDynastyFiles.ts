@@ -16,6 +16,7 @@ import {
   type DynastyVersion,
   type OpenedDynasty,
   type RecentDynasty,
+  type RecentFolderStatus,
 } from "../lib/dynastyStore";
 import { recordStorageFailure } from "../lib/storageDiagnostics";
 import type { Project, ProjectSummary } from "../types";
@@ -52,6 +53,10 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
   // Set when the pending dynasty is an old browser record being moved into a folder.
   const [pendingLegacyId, setPendingLegacyId] = useState<string>();
   const [recentFolders, setRecentFolders] = useState<RecentDynasty[]>([]);
+  /** Recent dynasties whose folder was checked; a missing folder can only be removed from the list. */
+  const [recentStatus, setRecentStatus] = useState<Record<string, RecentFolderStatus>>({});
+  /** A recent dynasty waiting for the delete confirmation on the start screen. */
+  const [recentToDelete, setRecentToDelete] = useState<RecentDynasty>();
   const [legacyProjects, setLegacyProjects] = useState<ProjectSummary[]>(listLegacyProjects);
   const [legacyUnreadable, setLegacyUnreadable] = useState(hasUnreadableLegacyRecords);
   const [folderWorking, setFolderWorking] = useState(false);
@@ -70,6 +75,19 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     setLegacyUnreadable(hasUnreadableLegacyRecords());
   }, [store]);
   useEffect(refreshFolders, [refreshFolders, project.id, app.folderName, app.hasProject]);
+  // Folders are checked only for the welcome screen, where the recent list is shown.
+  useEffect(() => {
+    if (app.hasProject) return;
+    let current = true;
+    void Promise.all(recentFolders.map(async (item) => [item.id, await store.folderStatus(item)] as const)).then(
+      (checked) => {
+        if (current) setRecentStatus(Object.fromEntries(checked));
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [store, recentFolders, app.hasProject]);
   const versionDate = useCallback(
     (version: DynastyVersion) =>
       new Date(version.savedAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }),
@@ -134,6 +152,31 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     }
     cancelImport();
     refreshFolders();
+    notify(t("dynastyDeleted"));
+    return true;
+  };
+  /** Only the entry in the list goes; the folder and its files stay as they are. */
+  const forgetRecent = async (item: RecentDynasty) => {
+    try {
+      await store.forgetRecent(item);
+      notify(t("removedFromRecent"));
+    } catch {
+      notify(t("folderFailed"));
+    }
+    refreshFolders();
+  };
+  /** Called only from the confirmation dialog; deletes the dynasty folder like «Delete dynasty» in its menu. */
+  const deleteRecent = async () => {
+    if (!recentToDelete) return false;
+    try {
+      await store.deleteRecent(recentToDelete);
+    } catch (error) {
+      if ((error as Error).message === "DYNASTY_OPEN_ELSEWHERE") notify(t("dynastyOpenElsewhere"));
+      return false;
+    } finally {
+      refreshFolders();
+    }
+    setRecentToDelete(undefined);
     notify(t("dynastyDeleted"));
     return true;
   };
@@ -301,6 +344,12 @@ export function useDynastyFiles({ app, notify, onOpened, closeProjectMenu }: Opt
     supported: store.supported,
     importInput,
     recentFolders,
+    recentStatus,
+    forgetRecent,
+    recentToDelete,
+    askDeleteRecent: setRecentToDelete,
+    closeDeleteRecent: () => setRecentToDelete(undefined),
+    deleteRecent,
     legacyProjects,
     legacyUnreadable,
     refreshFolders,

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
-import { FolderOpen, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import { FolderOpen, ShieldCheck, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { TreeIcon } from "../TreeIcon";
+import { PermanentDeleteDialog } from "../PermanentDeleteDialog";
 import { useI18n } from "../../i18n";
 import type { DynastyFiles } from "../../hooks/useDynastyFiles";
 
@@ -55,17 +56,50 @@ export function StartScreen({ files }: { files: DynastyFiles }) {
           {!files.recentFolders.length && !browserProjects.length && (
             <p className="tb-recent-empty">{t("recentEmpty")}</p>
           )}
-          {files.recentFolders.map((item, index) => (
-            <button className="tb-recent" key={item.id} onClick={() => void files.workWithFolder("open", item)}>
-              <span className="tb-recent-icon" style={{ "--pc": recentColors[index % 8] } as CSSProperties}>
-                <TreeIcon size={20} />
-              </span>
-              <span className="tb-recent-text">
-                <span className="tb-recent-name">{item.name}</span>
-                <small>{item.folderName}</small>
-              </span>
-            </button>
-          ))}
+          {files.recentFolders.map((item, index) => {
+            const missing = files.recentStatus[item.id] === "missing";
+            return (
+              <div className={`tb-recent-row ${missing ? "is-missing" : ""}`} key={item.id}>
+                <button
+                  className="tb-recent"
+                  disabled={missing}
+                  onClick={() => void files.workWithFolder("open", item)}
+                >
+                  <span className="tb-recent-icon" style={{ "--pc": recentColors[index % 8] } as CSSProperties}>
+                    <TreeIcon size={20} />
+                  </span>
+                  <span className="tb-recent-text">
+                    <span className="tb-recent-name">{item.name}</span>
+                    <small>{missing ? t("folderMissing") : item.folderName}</small>
+                  </span>
+                </button>
+                {missing ? (
+                  <button className="button subtle tb-recent-forget" onClick={() => void files.forgetRecent(item)}>
+                    <X size={15} /> {t("removeFromRecent")}
+                  </button>
+                ) : (
+                  <span className="tb-recent-actions">
+                    <button
+                      className="tb-icon-btn"
+                      aria-label={t("removeFromRecentNamed", { name: item.name })}
+                      title={t("removeFromRecent")}
+                      onClick={() => void files.forgetRecent(item)}
+                    >
+                      <X size={16} />
+                    </button>
+                    <button
+                      className="tb-icon-btn danger-ghost"
+                      aria-label={t("deleteDynastyNamed", { name: item.name })}
+                      title={t("deleteDynasty")}
+                      onClick={() => files.askDeleteRecent(item)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </span>
+                )}
+              </div>
+            );
+          })}
           {!!browserProjects.length && <h3>{t("browserDynasties")}</h3>}
           {browserProjects.map((item, index) => (
             <button className="tb-recent" key={item.id} onClick={() => files.startTransfer(item.id)}>
@@ -92,6 +126,15 @@ export function StartScreen({ files }: { files: DynastyFiles }) {
           {t("offline")}
         </p>
       </main>
+      {files.recentToDelete && (
+        <PermanentDeleteDialog
+          title={t("deleteDynastyTitle", { name: files.recentToDelete.name })}
+          description={t("deleteFolderDynastyHint", { folder: files.recentToDelete.folderName })}
+          clearHistory={false}
+          onClose={files.closeDeleteRecent}
+          onConfirm={files.deleteRecent}
+        />
+      )}
     </>
   );
 }

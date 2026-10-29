@@ -94,6 +94,11 @@ export const koiExtra: Record<string, string> = {
   deleteFolderDynastyHint:
     "«{folder}» династия папкаыс бырӧтчас быдӧс, персонажжезӧн, фотографияэзӧн, йитӧттэзӧн, кӧрзинаӧн да пытшкас быдӧс мӧдік файллэзӧн. Тайӧ действие оз позь дугӧдны. Орччӧн папкаэз да файллэз кольӧны.",
   deletePermanently: "Бырӧтны бӧр лэптӧг",
+  removeFromRecent: "Босьтны списокысь",
+  removeFromRecentNamed: "Босьтны «{name}» списокысь",
+  folderMissing: "Папкаыс оз сюрӧ",
+  removedFromRecent: "Босьтӧм списокысь. Дискын файллэз оз вежсьӧ.",
+  deleteDynastyNamed: "Бырӧтны «{name}»",
   dislikes: "Оз кажитчы",
   done: "Дась",
   downloadRecovery: "Видзны бӧр лэптан даннӧйес",
